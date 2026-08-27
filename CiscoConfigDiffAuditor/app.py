@@ -201,4 +201,4 @@ with gr.Blocks(title="Cisco Config Diff Viewer") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch(css=CUSTOM_CSS)
+    demo.launch(css=CUSTOM_CSS, share=True)
