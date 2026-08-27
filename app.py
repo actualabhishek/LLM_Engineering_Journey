@@ -7,6 +7,7 @@ Then open http://localhost:7860 in your browser.
 
 import queue
 import threading
+import time
 
 import gradio as gr
 
@@ -124,6 +125,7 @@ def run_query_streaming(question: str):
         generating = True
         accumulated += token
         yield accumulated, _PLACEHOLDER_SRC, _PLACEHOLDER_META
+        time.sleep(0.02)  # let Gradio flush each update before the next token
 
     thread.join()
 
@@ -206,6 +208,7 @@ with gr.Blocks(title="TCS Network KB — RAG Assistant") as demo:
 
 
 if __name__ == "__main__":
+    demo.queue()  # required for generator-based streaming to work
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
