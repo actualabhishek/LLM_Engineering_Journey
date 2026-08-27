@@ -1,11 +1,13 @@
 """
 generate node — synthesizes an answer from graded docs using claude-opus-4-8.
 
-If no graded docs survived (all dropped), falls back to retrieved_docs so the
-pipeline always has something to work with rather than producing an empty answer.
+Supports optional token streaming via a module-level sink callable.
+Set it with set_token_sink() before invoking the pipeline (used by app.py).
+When no sink is set, falls back to a standard blocking API call (CLI use).
 """
 
 import logging
+from typing import Callable, Optional
 import anthropic
 
 import config
@@ -14,6 +16,14 @@ from state import RAGState
 log = logging.getLogger(__name__)
 
 _client: anthropic.Anthropic | None = None
+
+# Set by app.py before each pipeline invocation; None in CLI mode.
+_token_sink: Optional[Callable[[str], None]] = None
+
+
+def set_token_sink(fn: Optional[Callable[[str], None]]) -> None:
+    global _token_sink
+    _token_sink = fn
 
 
 def _get_client() -> anthropic.Anthropic:
@@ -57,14 +67,17 @@ def generate(state: RAGState) -> dict:
 
     if not docs:
         log.warning("[generate] No documents available — returning empty-context response")
-        return {"generation": "I could not find relevant information in the knowledge base to answer this question."}
+        empty = "I could not find relevant information in the knowledge base to answer this question."
+        if _token_sink:
+            _token_sink(empty)
+        return {"generation": empty}
 
     context = _format_context(docs)
     user_msg = _USER_TEMPLATE.format(question=question, context=context)
 
     log.info("[generate] generating answer from %d docs with %s", len(docs), config.GENERATOR_MODEL)
 
-    response = _get_client().messages.create(
+    common_kwargs = dict(
         model=config.GENERATOR_MODEL,
         max_tokens=1024,
         thinking={"type": "adaptive"},
@@ -72,10 +85,21 @@ def generate(state: RAGState) -> dict:
         messages=[{"role": "user", "content": user_msg}],
     )
 
-    # Extract text blocks (skip thinking blocks)
-    answer = "\n".join(
-        block.text for block in response.content if block.type == "text"
-    ).strip()
+    if _token_sink:
+        # Streaming path — feed each text token to the sink as it arrives.
+        # text_stream skips thinking blocks automatically.
+        parts: list[str] = []
+        with _get_client().messages.stream(**common_kwargs) as stream:
+            for token in stream.text_stream:
+                parts.append(token)
+                _token_sink(token)
+        answer = "".join(parts).strip()
+    else:
+        # Blocking path (CLI).
+        response = _get_client().messages.create(**common_kwargs)
+        answer = "\n".join(
+            block.text for block in response.content if block.type == "text"
+        ).strip()
 
     log.info("[generate] answer length=%d chars", len(answer))
     return {"generation": answer}
