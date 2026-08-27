@@ -2,27 +2,28 @@
 app.py — Gradio UI for the RAG pipeline.
 
 Run:  python app.py
-Then open http://localhost:7860 in your browser.
+Opens http://localhost:7860 in Chrome or Edge automatically.
 """
 
-import queue
-import threading
-import time
-
+import subprocess
+import sys
+import anthropic
 import gradio as gr
 
-from graph import compile_graph
-from nodes.generate import set_token_sink
+from nodes.retrieve import retrieve
+from nodes.grade import grade_documents
+from nodes.evaluate import evaluate_answer
+from nodes.finalize import finalize
+from nodes.generate import format_context, SYSTEM_PROMPT, USER_TEMPLATE, _get_client
 from state import RAGState
 import config
 
-# Compile once at startup — not per request
-_app = compile_graph()
-
-_PLACEHOLDER = "_Answer will appear here._"
-_PLACEHOLDER_SRC = "_Sources will appear here._"
+_PLACEHOLDER      = "_Answer will appear here._"
+_PLACEHOLDER_SRC  = "_Sources will appear here._"
 _PLACEHOLDER_META = "_Quality check will appear here._"
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _build_sources_md(sources: list[dict]) -> str:
     seen: set[tuple] = set()
@@ -41,106 +42,117 @@ def _build_meta_md(state: dict) -> str:
     if not evaluation:
         return "_Evaluation not available._"
     verdict = evaluation.get("verdict", "N/A")
-    reason = evaluation.get("reason", "")
     icon = "✅" if verdict == "PASS" else "⚠️"
     rewritten = state.get("rewritten_query", "")
     rewrite_line = f"\n- **Rewritten query:** {rewritten}" if rewritten else ""
     return (
         f"{icon} **Verdict:** {verdict}  \n"
         f"- **Retries used:** {retry_count} / {config.MAX_RETRIES}  \n"
-        f"- **Reason:** {reason}"
+        f"- **Reason:** {evaluation.get('reason', '')}"
         f"{rewrite_line}"
     )
 
 
+def _stream_generate(state: dict):
+    """
+    Generator: streams tokens directly from Claude and yields (partial_answer,).
+    Caller is responsible for updating full state['generation'] after exhaustion.
+    """
+    question = state.get("rewritten_query") or state["question"]
+    docs = state.get("graded_docs") or state.get("retrieved_docs", [])
+
+    if not docs:
+        msg = "_No relevant documents found in the knowledge base._"
+        state["generation"] = msg
+        yield msg
+        return
+
+    context = format_context(docs)
+    user_msg = USER_TEMPLATE.format(question=question, context=context)
+
+    parts: list[str] = []
+    with _get_client().messages.stream(
+        model=config.GENERATOR_MODEL,
+        max_tokens=1024,
+        thinking={"type": "adaptive"},
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_msg}],
+    ) as stream:
+        for token in stream.text_stream:
+            parts.append(token)
+            yield "".join(parts)
+
+    state["generation"] = "".join(parts).strip()
+
+
+# ── Main streaming generator ──────────────────────────────────────────────────
+
 def run_query_streaming(question: str):
     """
-    Generator function — yields (answer, sources, meta) tuples progressively.
-
-    Phases:
-      1. Status updates while retrieve / grade / evaluate run (no LLM tokens yet).
-      2. Real-time token streaming from the generate node via set_token_sink().
-      3. Final yield with complete answer + sources + quality metadata.
+    Gradio generator — yields (answer, sources, meta) tuples.
+    Nodes are called directly (no LangGraph invocation) so we can
+    yield between each stage and stream Claude tokens inline.
     """
     if not question.strip():
         yield "Please enter a question.", _PLACEHOLDER_SRC, _PLACEHOLDER_META
         return
 
-    token_q: queue.Queue[str | None] = queue.Queue()
-    result: dict = {}
-    error: list = []
+    state: RAGState = {
+        "question": question.strip(),
+        "rewritten_query": "",
+        "retrieved_docs": [],
+        "graded_docs": [],
+        "generation": "",
+        "evaluation": None,
+        "retry_count": 0,
+        "final_answer": "",
+        "sources": [],
+    }
 
-    # ── Pipeline thread ───────────────────────────────────────────────────────
+    try:
+        for attempt in range(config.MAX_RETRIES + 1):
+            state["retry_count"] = attempt
 
-    def _run_pipeline():
-        initial_state: RAGState = {
-            "question": question.strip(),
-            "rewritten_query": "",
-            "retrieved_docs": [],
-            "graded_docs": [],
-            "generation": "",
-            "evaluation": None,
-            "retry_count": 0,
-            "final_answer": "",
-            "sources": [],
-        }
-        try:
-            set_token_sink(lambda tok: token_q.put(tok))
-            state = _app.invoke(initial_state)
-            result["state"] = state
-        except Exception as exc:
-            error.append(exc)
-        finally:
-            set_token_sink(None)
-            token_q.put(None)  # sentinel — signals end of stream
+            # ── Retrieve ──────────────────────────────────────────────────────
+            yield "_🔍 Retrieving relevant documents..._", _PLACEHOLDER_SRC, _PLACEHOLDER_META
+            state.update(retrieve(state))
 
-    thread = threading.Thread(target=_run_pipeline, daemon=True)
-    thread.start()
+            # ── Grade ─────────────────────────────────────────────────────────
+            yield "_📋 Grading document relevance..._", _PLACEHOLDER_SRC, _PLACEHOLDER_META
+            state.update(grade_documents(state))
 
-    # ── Phase 1 & 2: stream tokens, show status while waiting ─────────────────
+            # ── Generate (streaming) ──────────────────────────────────────────
+            yield "_✍️ Generating answer..._", _PLACEHOLDER_SRC, _PLACEHOLDER_META
+            for partial in _stream_generate(state):
+                yield partial, _PLACEHOLDER_SRC, _PLACEHOLDER_META
 
-    status_cycle = [
-        "_Retrieving relevant documents..._",
-        "_Grading document relevance..._",
-        "_Generating answer..._",
-    ]
-    status_idx = 0
-    accumulated = ""
-    generating = False  # flips True on first token
+            # ── Evaluate ──────────────────────────────────────────────────────
+            current_answer = state.get("generation", "")
+            yield current_answer + "\n\n_📊 Evaluating answer quality..._", _PLACEHOLDER_SRC, _PLACEHOLDER_META
+            state.update(evaluate_answer(state))
 
-    while True:
-        try:
-            token = token_q.get(timeout=1.5)
-        except queue.Empty:
-            # No token yet — show cycling status message
-            if not generating:
-                yield status_cycle[status_idx % len(status_cycle)], _PLACEHOLDER_SRC, _PLACEHOLDER_META
-                status_idx += 1
-            continue
+            evaluation = state.get("evaluation", {})
+            if evaluation.get("verdict") == "PASS":
+                break
 
-        if token is None:
-            break  # pipeline finished
+            if attempt < config.MAX_RETRIES:
+                rewritten = state.get("rewritten_query", "")
+                yield (
+                    current_answer + f"\n\n_🔄 Retrying with improved query (attempt {attempt + 1}/{config.MAX_RETRIES})..._",
+                    _PLACEHOLDER_SRC,
+                    _PLACEHOLDER_META,
+                )
 
-        # First token — switch from status display to live answer display
-        generating = True
-        accumulated += token
-        yield accumulated, _PLACEHOLDER_SRC, _PLACEHOLDER_META
-        time.sleep(0.02)  # let Gradio flush each update before the next token
+        # ── Finalize ──────────────────────────────────────────────────────────
+        state.update(finalize(state))
+        yield (
+            state.get("final_answer", current_answer),
+            _build_sources_md(state.get("sources", [])),
+            _build_meta_md(state),
+        )
 
-    thread.join()
-
-    # ── Phase 3: final yield with sources + quality metadata ──────────────────
-
-    if error:
-        yield f"**Error:** {error[0]}", _PLACEHOLDER_SRC, _PLACEHOLDER_META
-        return
-
-    state = result.get("state", {})
-    final_answer = state.get("final_answer", accumulated or "No answer produced.")
-    sources_md = _build_sources_md(state.get("sources", []))
-    meta_md = _build_meta_md(state)
-
-    yield final_answer, sources_md, meta_md
+    except Exception as exc:
+        yield f"**Error:** {exc}", _PLACEHOLDER_SRC, _PLACEHOLDER_META
 
 
 # ── UI layout ─────────────────────────────────────────────────────────────────
@@ -165,7 +177,7 @@ with gr.Blocks(title="TCS Network KB — RAG Assistant") as demo:
             )
             with gr.Row():
                 submit_btn = gr.Button("Ask", variant="primary", scale=2)
-                clear_btn = gr.Button("Clear", scale=1)
+                clear_btn  = gr.Button("Clear", scale=1)
 
         with gr.Column(scale=1):
             gr.Markdown("### Example questions")
@@ -187,19 +199,16 @@ with gr.Blocks(title="TCS Network KB — RAG Assistant") as demo:
         with gr.Column(scale=3):
             answer_out = gr.Markdown(label="Answer", value=_PLACEHOLDER)
         with gr.Column(scale=1):
-            sources_out = gr.Markdown(label="Sources", value=_PLACEHOLDER_SRC)
-            meta_out = gr.Markdown(label="Quality check", value=_PLACEHOLDER_META)
-
-    # ── Event wiring ──────────────────────────────────────────────────────────
+            sources_out = gr.Markdown(label="Sources",        value=_PLACEHOLDER_SRC)
+            meta_out    = gr.Markdown(label="Quality check",  value=_PLACEHOLDER_META)
 
     shared = dict(
         fn=run_query_streaming,
         inputs=question_box,
         outputs=[answer_out, sources_out, meta_out],
     )
-
     submit_btn.click(**shared)
-    question_box.submit(**shared)  # Enter key
+    question_box.submit(**shared)
 
     clear_btn.click(
         fn=lambda: (_PLACEHOLDER, _PLACEHOLDER_SRC, _PLACEHOLDER_META, ""),
@@ -207,12 +216,41 @@ with gr.Blocks(title="TCS Network KB — RAG Assistant") as demo:
     )
 
 
+# ── Launch ────────────────────────────────────────────────────────────────────
+
+def _open_browser(url: str) -> None:
+    """Try Chrome, then Edge, then system default."""
+    browsers = [
+        ["cmd", "/c", "start", "chrome", url],
+        ["cmd", "/c", "start", "msedge", url],
+    ]
+    for cmd in browsers:
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except Exception:
+            continue
+    # fallback
+    import webbrowser
+    webbrowser.open(url)
+
+
 if __name__ == "__main__":
-    demo.queue()  # required for generator-based streaming to work
-    demo.launch(
+    PORT = 7860
+    demo.queue()
+    _, _, _ = demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=PORT,
         show_error=True,
-        inbrowser=True,
-        theme=gr.themes.Soft(),
+        inbrowser=False,        # we open the browser ourselves
+        prevent_thread_lock=True,
     )
+    _open_browser(f"http://localhost:{PORT}")
+    # Keep process alive
+    try:
+        import time
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down.")
+        sys.exit(0)
