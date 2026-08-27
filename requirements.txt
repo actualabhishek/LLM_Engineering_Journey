@@ -1,0 +1,21 @@
+# Core LLM / orchestration
+anthropic>=0.52.0
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-chroma>=0.1.0
+langchain-huggingface>=0.1.0
+
+# Vector store
+chromadb>=0.5.0
+
+# Embeddings (local, no API key)
+sentence-transformers>=3.0.0
+
+# Document parsing
+pymupdf4llm>=0.0.17        # PDF → Markdown
+python-docx>=1.1.0          # DOCX parsing
+
+# Utilities
+python-dotenv>=1.0.0
+typing-extensions>=4.9.0
