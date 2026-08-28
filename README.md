@@ -59,6 +59,10 @@ LLM_Engineering_Journey/
 │
 ├── Fine_Tuning/                  # QLoRA fine-tuning experiments
 │
+├── LinkedIn_Post_Automation/     # Telegram-driven LinkedIn content pipeline —
+│                                 # Claude research + drafting, Gemini image gen,
+│                                 # Airtable tracking, Playwright publish
+│
 ├── .gitignore
 └── README.md
 ```
@@ -89,10 +93,11 @@ Built up from first principles: chunking strategies, embeddings, retrieval, then
 Two different takes on multi-step, multi-agent systems: a self-correcting RAG pipeline that grades its own retrieval and retries on weak matches (LangGraph), and a multi-provider agent team where OpenAI, Gemini, and Claude each play a distinct role in one group chat (AutoGen).
 
 ### 5. Applied Tools
-Three apps built to solve real problems, not just demo a model:
+Four apps built to solve real problems, not just demo a model:
 - **Network_KB_RAG_Claude** — the LangGraph notebook above, grown into a real app. Same self-correcting retrieval idea, but pushed further: `retrieve` (Chroma) → `grade_documents` (Haiku, relevance filter) → `generate` (Opus, answer synthesis) → `evaluate_answer` (Haiku, groundedness + relevance check) → `finalize`, with a retry loop if the answer doesn't hold up, served through a Gradio UI with real-time token streaming. Still pointed at my own TCS network SOPs as the test knowledge base.
 - **ResumeRocket AI** — gap analysis, tailored rewrite, visual diff, and cover letter generation from a resume + job description.
 - **CiscoConfigDiffAuditor** — a block-aware diff viewer for Cisco IOS configs, because a raw line diff on a reordered config tells you nothing. Flags security-relevant changes (ACLs, `shutdown`, `line vty`, `enable secret`) automatically.
+- **LinkedIn_Post_Automation** — a Claude Code plugin that runs my LinkedIn content pipeline end to end: a Telegram message kicks off research, a draft in my own voice, an AI-generated image, and an Airtable-tracked approval step, then publishes to LinkedIn via Playwright once I approve.
 
 Every notebook follows the same pattern: Markdown documentation and inline observations after every meaningful block, so it reads as a record of what I learned — not just what ran.
 
@@ -115,7 +120,6 @@ This repo is one piece of a larger applied-AI portfolio I'm building alongside m
 - 🤖 **Network AI Agents** — Copilot Studio Roster Maker agent, Network Ops Daily Standup bot (Power Automate + Dataverse)
 - 📈 **ForexAI Trader** — leading-indicator signal engine (RSI divergence, retest entries) with an LLM-based validator/veto layer
 - 📊 **NIFTY 50 Options Bot** — momentum-based decision engine with an LLM veto layer and live news intelligence
-- ✍️ **LinkedIn Content Automation** — Node.js + Playwright posting pipeline with Claude-generated content and an Airtable review queue
 
 ---
 
