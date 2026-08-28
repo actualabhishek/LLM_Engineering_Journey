@@ -1,0 +1,19 @@
+# Secrets / local env
+.env
+.env.local
+*.env
+
+# Dependencies
+node_modules/
+
+# Runtime state (pipeline queue, listener status)
+state/
+postflow-plugin/state/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Playwright MCP automation artifacts (screenshots, console logs)
+.playwright-mcp/
