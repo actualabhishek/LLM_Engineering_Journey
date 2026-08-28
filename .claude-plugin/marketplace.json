@@ -1,0 +1,13 @@
+{
+  "name": "postflow-local",
+  "owner": {
+    "name": "Abhishek Suman"
+  },
+  "plugins": [
+    {
+      "name": "postflow",
+      "source": "./postflow-plugin",
+      "description": "Telegram-driven LinkedIn content pipeline: research -> draft (/my-brand) -> image -> Telegram approval -> LinkedIn publish."
+    }
+  ]
+}

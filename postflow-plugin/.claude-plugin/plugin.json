@@ -1,0 +1,15 @@
+{
+  "name": "postflow",
+  "description": "Telegram-driven LinkedIn content pipeline: research a topic, draft a post in your /my-brand voice, generate an accompanying image, send it to Telegram for approve/reject, then publish to LinkedIn via Playwright.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Abhishek Suman"
+  },
+  "keywords": [
+    "linkedin",
+    "telegram",
+    "content",
+    "automation",
+    "airtable"
+  ]
+}
