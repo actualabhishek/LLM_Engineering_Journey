@@ -14,3 +14,6 @@ postflow-plugin/state/
 .DS_Store
 Thumbs.db
 *.log
+
+# Playwright MCP automation artifacts (screenshots, console logs)
+.playwright-mcp/

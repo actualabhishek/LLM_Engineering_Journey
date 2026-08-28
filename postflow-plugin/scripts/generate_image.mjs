@@ -18,6 +18,9 @@ if (!apiKey) {
 }
 
 const model = process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-2.5-flash-image';
+const aspectRatio = process.env.OPENROUTER_IMAGE_ASPECT_RATIO || '16:9';
+const resolution = process.env.OPENROUTER_IMAGE_RESOLUTION || '2K';
+const quality = process.env.OPENROUTER_IMAGE_QUALITY || 'high';
 
 const res = await fetch('https://openrouter.ai/api/v1/images', {
   method: 'POST',
@@ -25,7 +28,14 @@ const res = await fetch('https://openrouter.ai/api/v1/images', {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   },
-  body: JSON.stringify({ model, prompt, n: 1 }),
+  body: JSON.stringify({
+    model,
+    prompt,
+    n: 1,
+    aspect_ratio: aspectRatio,
+    resolution,
+    quality,
+  }),
 });
 
 if (!res.ok) {
