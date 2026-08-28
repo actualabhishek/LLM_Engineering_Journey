@@ -43,6 +43,10 @@ LLM_Engineering_Journey/
 ├── LangGraph Agent/              # Self-correcting RAG pipeline (LangGraph + Chroma)
 │                                 # for network ops SOPs, with retrieval grading
 │
+├── Network_KB_RAG_Claude/        # That LangGraph notebook, grown into a real app —
+│                                 # Claude Opus + Haiku, groundedness evaluation,
+│                                 # streaming Gradio UI
+│
 ├── Autogen Agent/                # Multi-LLM-provider agent team (AutoGen) —
 │                                 # OpenAI, Gemini, Claude collaborating in one chat
 │
@@ -85,7 +89,8 @@ Built up from first principles: chunking strategies, embeddings, retrieval, then
 Two different takes on multi-step, multi-agent systems: a self-correcting RAG pipeline that grades its own retrieval and retries on weak matches (LangGraph), and a multi-provider agent team where OpenAI, Gemini, and Claude each play a distinct role in one group chat (AutoGen).
 
 ### 5. Applied Tools
-Two apps built to solve real problems, not just demo a model:
+Three apps built to solve real problems, not just demo a model:
+- **Network_KB_RAG_Claude** — the LangGraph notebook above, grown into a real app. Same self-correcting retrieval idea, but pushed further: `retrieve` (Chroma) → `grade_documents` (Haiku, relevance filter) → `generate` (Opus, answer synthesis) → `evaluate_answer` (Haiku, groundedness + relevance check) → `finalize`, with a retry loop if the answer doesn't hold up, served through a Gradio UI with real-time token streaming. Still pointed at my own TCS network SOPs as the test knowledge base.
 - **ResumeRocket AI** — gap analysis, tailored rewrite, visual diff, and cover letter generation from a resume + job description.
 - **CiscoConfigDiffAuditor** — a block-aware diff viewer for Cisco IOS configs, because a raw line diff on a reordered config tells you nothing. Flags security-relevant changes (ACLs, `shutdown`, `line vty`, `enable secret`) automatically.
 
@@ -99,7 +104,7 @@ Every notebook follows the same pattern: Markdown documentation and inline obser
 - **Models:** Llama (3.1 / 3.2), Phi, Gemma, Qwen, DeepSeek, Whisper, SDXL, SpeechT5
 - **Tools:** Google Colab (T4 GPU), Gradio, Hugging Face Hub, Chroma
 - **APIs:** Anthropic Claude, OpenAI, Gemini (via OpenRouter)
-- **Techniques:** 4-bit NF4 quantization, chat-template prompting, streaming generation, structured-output prompting, RAG with self-grading retrieval, schema-constrained synthetic data generation
+- **Techniques:** 4-bit NF4 quantization, chat-template prompting, streaming generation, structured-output prompting, RAG with self-grading retrieval, groundedness evaluation, schema-constrained synthetic data generation
 
 ---
 
