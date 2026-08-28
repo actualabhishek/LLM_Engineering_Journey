@@ -92,25 +92,43 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/state.mjs" dequeue
 
 Once `/postflow start` has run, apply this for the rest of the session to
 every message that arrives tagged `<channel source="telegram" chat_id="..."
-message_id="..." ...>`:
+message_id="..." ...>`. This only happens automatically while this Claude
+Code session is alive, launched with
+`--channels plugin:telegram@claude-plugins-official`, and `/postflow start`
+has been run in it — there is no separate always-on background daemon (see
+"Use" in the plugin README).
+
+A new topic is only ever recognized by an explicit `Topic:` prefix (case
+insensitive, optional space after the colon) — e.g. `Topic: agentic coding
+in 2026`. This is deliberate: without a required prefix, any stray message
+(small talk, a typo, someone else's forward) would silently get treated as a
+LinkedIn post topic and start burning API calls. Trim the text after the
+colon for the actual topic string; if it's empty, reply "Send it as `Topic:
+<what you want the post about>`." and do nothing else.
 
 1. Read state: `node scripts/state.mjs get`.
 2. If `active` is false: this shouldn't normally happen (start turns it on),
    but if it does, send a short reply — "postflow is stopped — send
    `/postflow start` to resume" — and do nothing else.
-3. If `active` is true and `current` is **not** null: this message is a
-   reply about the in-flight row, not a new topic.
+3. If `active` is true and `current` is **not** null: this is either a
+   decision on the in-flight row or a new topic to queue.
    - Trim and case-fold the text. If it starts with `approve` → go to
      **Step 5a (Approve)** below using `current`.
    - If it starts with `reject` → go to **Step 5b (Reject)** below using
      `current`.
-   - Otherwise: treat the message as a **new topic to queue**, not garbage —
-     someone may legitimately send a second topic while the first is being
-     reviewed. Run `enqueue` with `{"topic": <text>, "chatId": <chat_id>}`,
-     and reply: "📥 Queued — I'll research this once the current post
+   - If it starts with `topic:` (case insensitive): run `enqueue` with
+     `{"topic": <text after the colon>, "chatId": <chat_id>}`, and reply:
+     "📥 Queued — I'll research this once the current post
      (\"<current.topic>\") is resolved."
-4. If `active` is true and `current` **is** null: this is a fresh topic.
-   Go to **Step 1 — Research** with this topic and chat_id.
+   - Otherwise: reply "Reply APPROVE or REJECT for the current draft, or
+     send \"Topic: <text>\" to queue a new one." and do nothing else — don't
+     guess at intent.
+4. If `active` is true and `current` **is** null:
+   - If the message starts with `topic:` (case insensitive): this is a
+     fresh topic. Go to **Step 1 — Research** with the text after the colon
+     as the topic, and this chat_id.
+   - Otherwise: reply "Send \"Topic: <what you want the post about>\" to
+     start one." and do nothing else.
 
 ## Step 1 — Research
 

@@ -56,6 +56,13 @@ From a `claude` session in this project (or point `--plugin-dir` at
 /postflow <topic>    # manual one-shot trigger, no Telegram message needed
 ```
 
+Once armed, send `Topic: <what you want the post about>` on Telegram to
+trigger a run — e.g. `Topic: agentic coding in 2026`. The `Topic:` prefix is
+required; anything else while no run is in flight gets a one-line nudge
+back instead of silently being treated as a post topic. Approve/reject a
+draft in flight by replying `APPROVE` or `REJECT`; a second `Topic: ...`
+while one's already in flight queues behind it.
+
 `start` only takes effect for the Claude Code session it's run in, and only
 receives Telegram messages if that session was launched with:
 
@@ -69,14 +76,26 @@ channels work.
 
 ## Why approval is a text reply, not a button
 
-The Telegram plugin exposes `reply`/`react`/`edit_message`/
-`download_attachment` to the assistant, with no tool to send an inline
-keyboard and no way for a button tap to reach the session — its
-callback-query handling is internal to the plugin (pairing/permission
-prompts only). So `/postflow` asks you to reply `APPROVE` or `REJECT` in
-plain text instead. This was a deliberate tradeoff over patching the
-installed telegram plugin's server code, which would silently break on the
-plugin's next update.
+Two button mechanisms were tried and both have a real problem:
+
+- **Inline keyboards** (buttons attached to the message) render fine, but
+  the installed telegram plugin's `callback_query` handler
+  (`server.ts`) only forwards taps matching its own internal
+  `perm:allow:<id>` / `perm:deny:<id>` pattern (used for CC tool-permission
+  prompts). Any other callback data — including postflow's — is
+  acknowledged and silently dropped; it never reaches the session. Making
+  it work means patching that handler in the installed plugin, which
+  silently reverts on the plugin's next update.
+- **Reply keyboards** (tapping just sends the button's label as plain
+  text — no plugin changes needed, since that's identical to typing) were
+  also tried directly against the Bot API. They didn't render on either
+  Telegram for macOS or the mobile app in testing, which lines up with
+  Telegram's own history of inconsistent reply-keyboard support across
+  clients.
+
+So `/postflow` asks you to reply `APPROVE` or `REJECT` in plain text — one
+word, no dependency on a specific client rendering something correctly, no
+fragility against the next plugin update.
 
 ## Files
 
