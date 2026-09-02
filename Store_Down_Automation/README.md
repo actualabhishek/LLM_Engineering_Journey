@@ -92,6 +92,18 @@ None of these were caught by writing better prompts. They were caught by actuall
 
 Built and validated in phases — detection, directory lookup, email composition (validated up to, not including, an actual send), ticket close-out and logging, and the orchestrator tying it together — each one checked against real data before moving to the next. Live end-to-end operation, with a human approving the first real sends, is next.
 
+## The actual code
+
+Beyond this write-up, the real working files are in this folder too — redacted the same way (real employer name, production URLs/IDs, and real people's names/emails all replaced with placeholders, kept consistent across files):
+
+- `schemas.py` — the Pydantic hand-off contracts
+- `validate.py` — the CLI validator every hand-off gets piped through
+- `incident-watcher.md`, `store-lookup.md`, `email-composer.md`, `logger.md` — the four agent definitions
+- `dispatcher_SKILL.md` — the orchestration procedure
+- `dispatcher_config.json` — the kill switch / send-mode runtime config
+
+In the real project these live in a nested structure (`models/schemas.py`, `dispatcher/validate.py`, `config/dispatcher_config.json`, `.claude/agents/*.md`, `.claude/skills/dispatcher/SKILL.md`) — flattened into one folder here for browsability. The path references inside each file reflect the real nested layout, not this one.
+
 ---
 
 Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
