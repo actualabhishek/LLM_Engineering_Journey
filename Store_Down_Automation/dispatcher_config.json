@@ -1,0 +1,12 @@
+{
+  "_note": "Real ServiceNow URL/query and specific dates redacted for this public write-up; everything else (flag names, defaults, and the reasoning in each *_notes field) is exactly as built.",
+  "send_mode": "supervised",
+  "send_mode_options": ["supervised", "autonomous"],
+  "send_mode_notes": "supervised = Agent 3 must get fresh, explicit, per-instance authorization from the operator before every Send click. autonomous = Agent 3 sends without asking, once the Dispatcher decides an incident's email is ready. Starts in supervised mode by design while the pipeline is unproven; switch to autonomous only when the operator explicitly says so, by editing this file (or asking Claude to). Never flip this value based on inference alone.",
+  "automation_paused": true,
+  "automation_paused_notes": "Kill switch. true = Dispatcher does nothing at all this cycle -- does not even run Agent 1's detect pass. Starts true (paused) so the very first scheduled tick doesn't do anything until the operator explicitly flips it to false.",
+  "poll_interval_minutes": 30,
+  "trigger_notes": "No OS-level/cloud scheduler is active (cloud routines can't reach the local browser/SSO session this pipeline depends on; local OS-level scheduling was offered but manual triggering was chosen for now). For a live test run, the operator starts a recurring in-session loop by typing `/loop 30m /dispatcher` in a Claude Code session -- this re-invokes the `dispatcher` skill every 30 minutes until told to stop. This requires the session/terminal to stay open and the machine to stay on; it is not a background service and does not survive closing the terminal. poll_interval_minutes above documents this cadence.",
+  "servicenow_list_view_url": "https://yourcompany.service-now.com/incident_list.do?sysparm_query=active%3Dtrue%5Eassignment_groupDYNAMIC00000000000000000000000000%5Eshort_descriptionLIKEping",
+  "duplicate_send_window_hours": 2
+}
