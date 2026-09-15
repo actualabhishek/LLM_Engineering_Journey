@@ -1,0 +1,39 @@
+[Unit]
+Description=ForexAI Trader — Autonomous Forex Trading System
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+# ── identity ────────────────────────────────────────────
+User=forexai
+Group=forexai
+WorkingDirectory=/opt/forex_ai_trader
+
+# ── environment ─────────────────────────────────────────
+EnvironmentFile=/opt/forex_ai_trader/.env
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/opt/forex_ai_trader"
+
+# ── execution ────────────────────────────────────────────
+ExecStart=/opt/forex_ai_trader/venv/bin/python main.py --mode full
+ExecStop=/bin/kill -TERM $MAINPID
+
+# ── restart policy ───────────────────────────────────────
+Restart=on-failure
+RestartSec=15s
+TimeoutStopSec=30s
+
+# ── resource limits ──────────────────────────────────────
+LimitNOFILE=65536
+MemoryMax=1G
+CPUQuota=80%
+
+# ── output ───────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forex-ai-trader
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,59 @@
+version: '3.8'
+
+# ============================================================
+# ForexAI Trader - Docker Compose
+# Services:
+#   - webhook: FastAPI webhook receiver (port 8000)
+#   - dashboard: Streamlit dashboard (port 8501)
+# ============================================================
+
+services:
+  webhook:
+    build: .
+    container_name: forexai_webhook
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - ./.env:/app/.env:ro
+      - ./config:/app/config:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: >
+      uvicorn tradingview_webhook.webhook_server:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 1
+      --log-level warning
+    networks:
+      - forexai_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  dashboard:
+    build: .
+    container_name: forexai_dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./storage:/app/storage:ro
+      - ./.env:/app/.env:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: streamlit run dashboard/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    networks:
+      - forexai_net
+    depends_on:
+      - webhook
+
+networks:
+  forexai_net:
+    driver: bridge
+
+volumes:
+  storage:

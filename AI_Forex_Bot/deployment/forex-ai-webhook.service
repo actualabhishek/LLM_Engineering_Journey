@@ -1,0 +1,26 @@
+[Unit]
+Description=ForexAI Trader — TradingView Webhook Server
+After=network-online.target
+Wants=network-online.target
+PartOf=forex-ai-trader.service
+
+[Service]
+User=forexai
+Group=forexai
+WorkingDirectory=/opt/forex_ai_trader
+
+EnvironmentFile=/opt/forex_ai_trader/.env
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/opt/forex_ai_trader"
+
+ExecStart=/opt/forex_ai_trader/venv/bin/python main.py --mode webhook
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=20s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forex-ai-webhook
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# Secrets
+.env
+
+# Local state / logs (not source)
+storage/data/*.json
+storage/data/*.csv
+storage/data/replay_*.json
+storage/logs/
+prompt.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

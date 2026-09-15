@@ -1,0 +1,313 @@
+//@version=5
+indicator(title="ForexAI Trader v3 — Signal Engine", shorttitle="ForexAI v3", overlay=true, max_bars_back=500)
+
+// ============================================================
+// ForexAI Trader v3 — Pine Script
+// Mirrors the Python signal_engine.py 7 triggers exactly:
+//   1. EMA Pullback (trend continuation at EMA9/21)
+//   2. S/R Breakout + Retest
+//   3. Trendline Break (M15 short-term lines)
+//   4. Engulfing at Key Level
+//   5. Inside Bar Breakout
+//   6. MACD Cross at EMA Confluence
+//   7. Supertrend Flip
+//
+// LAYERS (matches Python):
+//   Layer 1 — H4/D1 bias (shown in table)
+//   Layer 2 — M15 trigger detection (labels on chart)
+//   Layer 3 — Confirmation (volume, ADX, candle quality)
+// ============================================================
+
+// ── INPUTS ───────────────────────────────────────────────────
+grp_ema = "EMA Settings"
+ema_fast   = input.int(9,   "EMA Fast",  group=grp_ema)
+ema_medium = input.int(21,  "EMA Medium",group=grp_ema)
+ema_slow   = input.int(50,  "EMA Slow",  group=grp_ema)
+ema_trend  = input.int(200, "EMA Trend", group=grp_ema)
+
+grp_disp = "Display"
+show_ema        = input.bool(true,  "Show EMAs",              group=grp_disp)
+show_sr         = input.bool(true,  "Show S/R Levels",        group=grp_disp)
+show_trendlines = input.bool(true,  "Show Trendlines",        group=grp_disp)
+show_triggers   = input.bool(true,  "Show Trigger Labels",    group=grp_disp)
+show_sessions   = input.bool(true,  "Show Session Shading",   group=grp_disp)
+show_fvg        = input.bool(true,  "Show Fair Value Gaps",   group=grp_disp)
+show_ob         = input.bool(true,  "Show Order Blocks",      group=grp_disp)
+
+grp_filter = "Signal Filters"
+adx_min       = input.int(17,   "Min ADX",           group=grp_filter)
+min_body_pct  = input.float(0.4,"Min Candle Body %", group=grp_filter, step=0.1)
+vol_lookback  = input.int(20,   "Volume Lookback",   group=grp_filter)
+
+// ── CORE INDICATORS ──────────────────────────────────────────
+ema9   = ta.ema(close, ema_fast)
+ema21  = ta.ema(close, ema_medium)
+ema50  = ta.ema(close, ema_slow)
+ema200 = ta.ema(close, ema_trend)
+
+[macd_line, macd_sig, macd_hist] = ta.macd(close, 12, 26, 9)
+[dmi_pos, dmi_neg, adx_val]      = ta.dmi(14, 14)
+[st_line, st_dir]                 = ta.supertrend(3.0, 10)
+atr                               = ta.atr(14)
+rsi                               = ta.rsi(close, 14)
+
+// ── LAYER 1: HIGHER TF BIAS (approximate in Pine using weekly/daily) ──
+// Use D timeframe EMA50/200 relationship as bias indicator
+ema50_d  = request.security(syminfo.tickerid, "D", ta.ema(close, 50),  lookahead=barmerge.lookahead_off)
+ema200_d = request.security(syminfo.tickerid, "D", ta.ema(close, 200), lookahead=barmerge.lookahead_off)
+close_d  = request.security(syminfo.tickerid, "D", close,              lookahead=barmerge.lookahead_off)
+ema50_h4 = request.security(syminfo.tickerid, "240", ta.ema(close, 50), lookahead=barmerge.lookahead_off)
+close_h4 = request.security(syminfo.tickerid, "240", close,             lookahead=barmerge.lookahead_off)
+
+d1_bull  = close_d  > ema50_d  and ema50_d  > ema200_d
+d1_bear  = close_d  < ema50_d  and ema50_d  < ema200_d
+h4_bull  = close_h4 > ema50_h4
+h4_bear  = close_h4 < ema50_h4
+
+htf_bias = d1_bull and h4_bull ? "BUY" : d1_bear and h4_bear ? "SELL" : d1_bull or h4_bull ? "WEAK BUY" : d1_bear or h4_bear ? "WEAK SELL" : "NEUTRAL"
+bias_col  = (htf_bias == "BUY" or htf_bias == "WEAK BUY") ? color.lime : (htf_bias == "SELL" or htf_bias == "WEAK SELL") ? color.red : color.gray
+
+// ── LAYER 2: M15 TRIGGERS ────────────────────────────────────
+
+// -- Trigger 1: EMA Pullback --
+atr_tol    = atr * 0.35
+// BUY: price touched EMA9/21 from above and bounced
+pb_buy_ema9  = low[1] <= ema9[1] + atr_tol and close[1] > ema9[1] and close[1] > close[2] and close[1] > open[1]
+pb_buy_ema21 = low[1] <= ema21[1] + atr_tol and close[1] > ema21[1] and close[1] > close[2] and close[1] > open[1]
+pb_buy       = (pb_buy_ema9 or pb_buy_ema21) and ema9 > ema21 and ema21 > ema50
+// SELL: price touched EMA9/21 from below and rejected
+pb_sell_ema9  = high[1] >= ema9[1] - atr_tol and close[1] < ema9[1] and close[1] < close[2] and close[1] < open[1]
+pb_sell_ema21 = high[1] >= ema21[1] - atr_tol and close[1] < ema21[1] and close[1] < close[2] and close[1] < open[1]
+pb_sell       = (pb_sell_ema9 or pb_sell_ema21) and ema9 < ema21 and ema21 < ema50
+
+// -- Trigger 2: S/R Breakout & Retest --
+swing_high_val = ta.highest(high, 20)[1]
+swing_low_val  = ta.lowest(low,   20)[1]
+// Breakout
+sr_buy_break   = close[2] < swing_high_val and close[1] > swing_high_val + atr * 0.15
+sr_sell_break  = close[2] > swing_low_val  and close[1] < swing_low_val  - atr * 0.15
+// Retest (broke previously, now retesting broken level)
+sr_buy_retest  = ta.highest(close, 5)[2] > swing_high_val and math.abs(close[1] - swing_high_val) < atr * 0.3 and close[1] > close[2]
+sr_sell_retest = ta.lowest(close,  5)[2] < swing_low_val  and math.abs(close[1] - swing_low_val)  < atr * 0.3 and close[1] < close[2]
+
+// -- Trigger 3: Trendline Break (simplified — pivot-based) --
+ph = ta.pivothigh(high, 5, 5)
+pl = ta.pivotlow(low,   5, 5)
+var float last_ph1 = na
+var float last_ph2 = na
+var float last_pl1 = na
+var float last_pl2 = na
+var int   ph1_bar  = na
+var int   ph2_bar  = na
+var int   pl1_bar  = na
+var int   pl2_bar  = na
+
+if not na(ph)
+    last_ph2 := last_ph1
+    ph2_bar  := ph1_bar
+    last_ph1 := ph
+    ph1_bar  := bar_index - 5
+
+if not na(pl)
+    last_pl2 := last_pl1
+    pl2_bar  := pl1_bar
+    last_pl1 := pl
+    pl1_bar  := bar_index - 5
+
+// Downtrend line (connecting swing highs) — break up = BUY
+tl_bear_slope = not na(last_ph1) and not na(last_ph2) and ph1_bar > ph2_bar ? (last_ph1 - last_ph2) / (ph1_bar - ph2_bar) : na
+tl_bear_val   = not na(tl_bear_slope) ? last_ph1 + tl_bear_slope * (bar_index - 1 - ph1_bar) : na
+tl_break_buy  = not na(tl_bear_val) and tl_bear_slope < 0 and close[2] < tl_bear_val[1] and close[1] > tl_bear_val + atr * 0.1
+
+// Uptrend line (connecting swing lows) — break down = SELL
+tl_bull_slope = not na(last_pl1) and not na(last_pl2) and pl1_bar > pl2_bar ? (last_pl1 - last_pl2) / (pl1_bar - pl2_bar) : na
+tl_bull_val   = not na(tl_bull_slope) ? last_pl1 + tl_bull_slope * (bar_index - 1 - pl1_bar) : na
+tl_break_sell = not na(tl_bull_val) and tl_bull_slope > 0 and close[2] > tl_bull_val[1] and close[1] < tl_bull_val - atr * 0.1
+
+// -- Trigger 4: Engulfing at Key Level --
+body1     = math.abs(close[1] - open[1])
+body2     = math.abs(close[2] - open[2])
+bull_eng  = close[2] < open[2] and close[1] > open[1] and open[1] < close[2] and close[1] > open[2] and body1 > body2 * 1.1
+bear_eng  = close[2] > open[2] and close[1] < open[1] and open[1] > close[2] and close[1] < open[2] and body1 > body2 * 1.1
+at_support    = math.abs(low[1]  - swing_low_val)  < atr * 0.4
+at_resistance = math.abs(high[1] - swing_high_val) < atr * 0.4
+eng_buy       = bull_eng and at_support
+eng_sell      = bear_eng and at_resistance
+
+// -- Trigger 5: Inside Bar Breakout --
+is_inside      = high[1] < high[2] and low[1] > low[2]
+ib_buy         = is_inside[1] and close > high[2]    // breaking above mother bar
+ib_sell        = is_inside[1] and close < low[2]     // breaking below mother bar
+
+// -- Trigger 6: MACD Cross at EMA --
+macd_bull_cross = ta.crossover(macd_line, macd_sig)  and math.abs(close - ema9) < atr * 0.4
+macd_bear_cross = ta.crossunder(macd_line, macd_sig) and math.abs(close - ema9) < atr * 0.4
+
+// -- Trigger 7: Supertrend Flip --
+st_flip_buy  = st_dir == 1 and st_dir[1] == -1
+st_flip_sell = st_dir == -1 and st_dir[1] == 1
+
+// ── LAYER 3: CONFIRMATION ────────────────────────────────────
+avg_vol     = ta.sma(volume, vol_lookback)
+vol_spike   = volume > avg_vol * 1.4
+adx_ok      = adx_val >= adx_min
+candle_bull = (close[1] - open[1]) / math.max(high[1] - low[1], 0.0001) >= min_body_pct and close[1] > open[1]
+candle_bear = (open[1] - close[1]) / math.max(high[1] - low[1], 0.0001) >= min_body_pct and close[1] < open[1]
+rsi_bull_ok = rsi > 45 and rsi < 70
+rsi_bear_ok = rsi < 55 and rsi > 30
+
+confirm_buy  = (vol_spike ? 1 : 0) + (adx_ok ? 1 : 0) + (candle_bull ? 1 : 0) + (rsi_bull_ok ? 1 : 0)
+confirm_sell = (vol_spike ? 1 : 0) + (adx_ok ? 1 : 0) + (candle_bear ? 1 : 0) + (rsi_bear_ok ? 1 : 0)
+
+// ── FINAL SIGNAL LOGIC ───────────────────────────────────────
+// BUY: any trigger fires + at least 2 confirmations + bias not strongly SELL
+any_buy_trigger = pb_buy or sr_buy_break or sr_buy_retest or tl_break_buy or eng_buy or ib_buy or macd_bull_cross or st_flip_buy
+any_sell_trigger= pb_sell or sr_sell_break or sr_sell_retest or tl_break_sell or eng_sell or ib_sell or macd_bear_cross or st_flip_sell
+
+bias_allows_buy  = htf_bias != "SELL"
+bias_allows_sell = htf_bias != "BUY"
+
+buy_signal  = any_buy_trigger  and confirm_buy  >= 2 and bias_allows_buy
+sell_signal = any_sell_trigger and confirm_sell >= 2 and bias_allows_sell
+
+// Dedup
+var string last = "NONE"
+new_buy  = buy_signal  and last != "BUY"
+new_sell = sell_signal and last != "SELL"
+if new_buy
+    last := "BUY"
+if new_sell
+    last := "SELL"
+if not buy_signal and not sell_signal
+    last := "NONE"
+
+// ── TRIGGER NAME FOR LABEL ────────────────────────────────────
+trigger_name_buy = pb_buy ? (pb_buy_ema9 ? "PB-EMA9" : "PB-EMA21") : sr_buy_retest ? "SR-RETEST" : sr_buy_break ? "SR-BREAK" : tl_break_buy ? "TL-BREAK" : eng_buy ? "ENGULF" : ib_buy ? "IB-BREAK" : macd_bull_cross ? "MACD-X" : st_flip_buy ? "ST-FLIP" : "BUY"
+trigger_name_sell= pb_sell ? (pb_sell_ema9 ? "PB-EMA9" : "PB-EMA21") : sr_sell_retest ? "SR-RETEST" : sr_sell_break ? "SR-BREAK" : tl_break_sell ? "TL-BREAK" : eng_sell ? "ENGULF" : ib_sell ? "IB-BREAK" : macd_bear_cross ? "MACD-X" : st_flip_sell ? "ST-FLIP" : "SELL"
+
+// SL/TP
+sl_mult = pb_buy or pb_sell ? 1.0 : sr_buy_retest or sr_sell_retest ? 1.0 : tl_break_buy or tl_break_sell ? 1.2 : 1.5
+tp_mult = rsi > 80 or rsi < 20 ? 2.5 : adx_val > 30 ? 4.0 : 3.0
+buy_sl  = close[1] - atr * sl_mult
+buy_tp  = close[1] + atr * tp_mult
+sell_sl = close[1] + atr * sl_mult
+sell_tp = close[1] - atr * tp_mult
+buy_rr  = math.round((buy_tp  - close[1]) / math.max(close[1] - buy_sl,  0.0001), 1)
+sell_rr = math.round((close[1] - sell_tp) / math.max(sell_sl  - close[1],0.0001), 1)
+
+// ── PLOTS ────────────────────────────────────────────────────
+// EMAs
+plot(show_ema ? ema9   : na, "EMA 9",   color=color.new(color.yellow, 0), linewidth=1)
+plot(show_ema ? ema21  : na, "EMA 21",  color=color.new(color.orange, 0), linewidth=1)
+plot(show_ema ? ema50  : na, "EMA 50",  color=color.new(color.red,    0), linewidth=2)
+plot(show_ema ? ema200 : na, "EMA 200", color=color.new(color.white, 30), linewidth=2, style=plot.style_linebr)
+
+// Supertrend
+plot(st_dir ==  1 ? st_line : na, "ST Bull", color=color.new(color.lime, 0), style=plot.style_linebr, linewidth=2)
+plot(st_dir == -1 ? st_line : na, "ST Bear", color=color.new(color.red,  0), style=plot.style_linebr, linewidth=2)
+
+// Trendlines
+plot(show_trendlines ? tl_bear_val : na, "Bear TL", color=color.new(color.red,  50), style=plot.style_line, linewidth=1)
+plot(show_trendlines ? tl_bull_val : na, "Bull TL", color=color.new(color.lime, 50), style=plot.style_line, linewidth=1)
+
+// S/R levels
+plot(show_sr ? swing_high_val : na, "Resistance", color=color.new(color.red,  60), style=plot.style_circles, linewidth=1)
+plot(show_sr ? swing_low_val  : na, "Support",    color=color.new(color.lime, 60), style=plot.style_circles, linewidth=1)
+
+// FVG detection
+fvg_bull = high[2] < low[0]
+fvg_bear = low[2]  > high[0]
+plot(show_fvg and fvg_bull ? low[0]  : na, "FVG Bull", color=color.new(color.aqua, 70), style=plot.style_linebr)
+plot(show_fvg and fvg_bull ? high[2] : na, "FVG Bull2",color=color.new(color.aqua, 70), style=plot.style_linebr)
+plot(show_fvg and fvg_bear ? high[0] : na, "FVG Bear", color=color.new(color.fuchsia, 70), style=plot.style_linebr)
+plot(show_fvg and fvg_bear ? low[2]  : na, "FVG Bear2",color=color.new(color.fuchsia, 70), style=plot.style_linebr)
+
+// Order blocks
+ob_bull = close[1] < open[1] and close > open and close > open[1]
+ob_bear = close[1] > open[1] and close < open and close < open[1]
+bgcolor(show_ob and ob_bull ? color.new(color.lime, 93) : na, title="Bullish OB")
+bgcolor(show_ob and ob_bear ? color.new(color.red,  93) : na, title="Bearish OB")
+
+// Pullback zone highlight
+pb_zone_buy  = close > ema9 and close > ema21 and math.abs(close - ema9) < atr * 0.4
+pb_zone_sell = close < ema9 and close < ema21 and math.abs(close - ema9) < atr * 0.4
+bgcolor(pb_zone_buy  ? color.new(color.lime, 94) : na, title="Pullback Buy Zone")
+bgcolor(pb_zone_sell ? color.new(color.red,  94) : na, title="Pullback Sell Zone")
+
+// Session shading
+utc_hour     = hour(time, "UTC")
+is_lon_open  = utc_hour >= 7  and utc_hour < 9
+is_london    = utc_hour >= 9  and utc_hour < 12
+is_dead      = utc_hour >= 12 and utc_hour < 13
+is_ny_open   = utc_hour >= 13 and utc_hour < 15
+is_ny        = utc_hour >= 15 and utc_hour < 20
+bgcolor(show_sessions and is_lon_open ? color.new(color.blue,   88) : na, title="London Open")
+bgcolor(show_sessions and is_london   ? color.new(color.blue,   94) : na, title="London")
+bgcolor(show_sessions and is_dead     ? color.new(color.red,    90) : na, title="Dead Zone")
+bgcolor(show_sessions and is_ny_open  ? color.new(color.orange, 88) : na, title="NY Open")
+bgcolor(show_sessions and is_ny       ? color.new(color.orange, 94) : na, title="NY")
+
+// Signal labels
+label_buy_txt  = trigger_name_buy  + "\n" + str.tostring(math.round(buy_rr,  1)) + "R"
+label_sell_txt = trigger_name_sell + "\n" + str.tostring(math.round(sell_rr, 1)) + "R"
+plotshape(show_triggers and new_buy,  "BUY",  shape.labelup,   location.belowbar, color.lime, text="▲", textcolor=color.black, size=size.small)
+plotshape(show_triggers and new_sell, "SELL", shape.labeldown, location.abovebar, color.red,  text="▼", textcolor=color.white, size=size.small)
+
+// Trigger-specific markers (smaller, for context)
+plotshape(pb_buy  and not new_buy,  "PB Buy area",  shape.triangleup,   location.belowbar, color.new(color.lime, 50), size=size.tiny)
+plotshape(pb_sell and not new_sell, "PB Sell area", shape.triangledown, location.abovebar, color.new(color.red,  50), size=size.tiny)
+plotshape(tl_break_buy,  "TL Break Buy",  shape.xcross, location.belowbar, color.new(color.aqua,    0), size=size.tiny)
+plotshape(tl_break_sell, "TL Break Sell", shape.xcross, location.abovebar, color.new(color.fuchsia, 0), size=size.tiny)
+plotshape(st_flip_buy,   "ST Flip Buy",   shape.circle, location.belowbar, color.new(color.lime, 30), size=size.tiny)
+plotshape(st_flip_sell,  "ST Flip Sell",  shape.circle, location.abovebar, color.new(color.red,  30), size=size.tiny)
+
+// SL/TP lines
+plot(new_buy  ? buy_sl  : na, "BUY SL",  color=color.red,  style=plot.style_cross, linewidth=2)
+plot(new_buy  ? buy_tp  : na, "BUY TP",  color=color.lime, style=plot.style_cross, linewidth=2)
+plot(new_sell ? sell_sl : na, "SELL SL", color=color.red,  style=plot.style_cross, linewidth=2)
+plot(new_sell ? sell_tp : na, "SELL TP", color=color.lime, style=plot.style_cross, linewidth=2)
+
+// ── INFO TABLE ───────────────────────────────────────────────
+var table t = table.new(position.top_right, 2, 12, bgcolor=color.new(color.black, 70), border_color=color.new(color.gray, 50), border_width=1)
+
+if barstate.islast
+    table.cell(t, 0, 0, "ForexAI v3",   text_color=color.yellow, text_size=size.small, bgcolor=color.new(color.navy, 40))
+    table.cell(t, 1, 0, syminfo.ticker, text_color=color.yellow, text_size=size.small, bgcolor=color.new(color.navy, 40))
+    table.cell(t, 0,  1, "HTF Bias",  text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  1, htf_bias,    text_color=bias_col,    text_size=size.tiny)
+    table.cell(t, 0,  2, "D1 Trend",  text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  2, d1_bull ? "Bullish" : d1_bear ? "Bearish" : "Neutral", text_color=(d1_bull ? color.lime : d1_bear ? color.red : color.gray), text_size=size.tiny)
+    table.cell(t, 0,  3, "H4 Trend",  text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  3, h4_bull ? "Bullish" : h4_bear ? "Bearish" : "Neutral", text_color=(h4_bull ? color.lime : h4_bear ? color.red : color.gray), text_size=size.tiny)
+    table.cell(t, 0,  4, "ST",        text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  4, st_dir == 1 ? "Bull" : "Bear", text_color=(st_dir == 1 ? color.lime : color.red), text_size=size.tiny)
+    table.cell(t, 0,  5, "ADX",       text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  5, str.tostring(math.round(adx_val, 1)), text_color=(adx_val >= 25 ? color.lime : adx_val >= 17 ? color.orange : color.gray), text_size=size.tiny)
+    table.cell(t, 0,  6, "RSI",       text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  6, str.tostring(math.round(rsi, 1)), text_color=(rsi > 70 ? color.red : rsi < 30 ? color.lime : color.white), text_size=size.tiny)
+    table.cell(t, 0,  7, "Volume",    text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  7, vol_spike ? "SPIKE ✓" : "Normal", text_color=(vol_spike ? color.lime : color.gray), text_size=size.tiny)
+    table.cell(t, 0,  8, "PB Zone",   text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  8, pb_zone_buy ? "BUY ✓" : pb_zone_sell ? "SELL ✓" : "—", text_color=(pb_zone_buy ? color.lime : pb_zone_sell ? color.red : color.gray), text_size=size.tiny)
+    table.cell(t, 0,  9, "Session",   text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1,  9, is_lon_open ? "LDN Open🔥" : is_dead ? "Dead⛔" : is_ny_open ? "NY Open🔥" : is_london ? "London" : is_ny ? "NY" : "Off", text_color=(is_lon_open or is_ny_open ? color.yellow : is_dead ? color.red : color.white), text_size=size.tiny)
+    table.cell(t, 0, 10, "Trigger",   text_color=color.white, text_size=size.tiny)
+    table.cell(t, 1, 10, new_buy ? trigger_name_buy : new_sell ? trigger_name_sell : "—", text_color=(new_buy ? color.lime : new_sell ? color.red : color.gray), text_size=size.tiny)
+    table.cell(t, 0, 11, "Signal",    text_color=color.white, text_size=size.small, bgcolor=color.new(color.navy, 60))
+    table.cell(t, 1, 11, new_buy ? "BUY ✓" : new_sell ? "SELL ✓" : "WAIT", text_color=(new_buy ? color.lime : new_sell ? color.red : color.gray), text_size=size.small, bgcolor=color.new(color.navy, 60))
+
+// ── ALERTS ───────────────────────────────────────────────────
+alertcondition(new_buy,       "ForexAI v3 BUY",          "BUY")
+alertcondition(new_sell,      "ForexAI v3 SELL",         "SELL")
+alertcondition(pb_buy,        "ForexAI v3 Pullback BUY", "PB_BUY")
+alertcondition(pb_sell,       "ForexAI v3 Pullback SELL","PB_SELL")
+alertcondition(tl_break_buy,  "ForexAI v3 TL Break BUY", "TL_BUY")
+alertcondition(tl_break_sell, "ForexAI v3 TL Break SELL","TL_SELL")
+alertcondition(sr_buy_retest, "ForexAI v3 SR Retest BUY","SR_BUY")
+alertcondition(sr_sell_retest,"ForexAI v3 SR Retest SELL","SR_SELL")
+alertcondition(st_flip_buy,   "ForexAI v3 ST Flip BUY",  "ST_BUY")
+alertcondition(st_flip_sell,  "ForexAI v3 ST Flip SELL", "ST_SELL")
+
+// WEBHOOK MESSAGE (paste into TradingView alert message box):
+// {"symbol":"{{ticker}}","timeframe":"{{interval}}","signal":"BUY","timestamp":"{{timenow}}","token":"6b3da084bc4362d582a90aafbff73e3546b1042c5f0819fb73335475e9637613"}
+// Change "BUY" to "SELL" for sell alerts

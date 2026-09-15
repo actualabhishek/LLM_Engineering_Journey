@@ -1,0 +1,76 @@
+/* dashboard/assets/style.css — layout polish on top of the .streamlit/config.toml theme.
+   Theme covers colors; this covers spacing/typography/card structure. */
+
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 2rem;
+}
+
+/* Tighter, more consistent metric spacing */
+div[data-testid="stMetric"] {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+div[data-testid="stMetricLabel"] {
+    font-size: 0.78rem;
+    opacity: 0.75;
+}
+div[data-testid="stMetricValue"] {
+    font-size: 1.35rem;
+}
+
+/* Position / decision cards */
+.fai-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    margin-bottom: 0.6rem;
+}
+.fai-card:hover {
+    border-color: #3b82f6;
+}
+
+.fai-decision {
+    border-left: 3px solid var(--fai-color, #8b949e);
+    background: #161b22;
+    padding: 5px 10px;
+    margin: 4px 0;
+    border-radius: 6px;
+    font-size: 12.5px;
+}
+
+.fai-pill {
+    display: inline-block;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.fai-section-title {
+    font-size: 1.02rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    color: #e6edf3;
+}
+
+.fai-muted {
+    color: #8b949e;
+    font-size: 0.82rem;
+}
+
+/* Tighter dataframe */
+div[data-testid="stDataFrame"] {
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+hr {
+    border-color: #30363d !important;
+    margin: 1.1rem 0 !important;
+}

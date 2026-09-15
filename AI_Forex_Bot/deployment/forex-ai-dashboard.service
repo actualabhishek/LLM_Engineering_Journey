@@ -1,0 +1,29 @@
+[Unit]
+Description=ForexAI Trader — Streamlit Dashboard
+After=network-online.target forex-ai-trader.service
+Wants=network-online.target
+
+[Service]
+User=forexai
+Group=forexai
+WorkingDirectory=/opt/forex_ai_trader
+
+EnvironmentFile=/opt/forex_ai_trader/.env
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/opt/forex_ai_trader"
+
+ExecStart=/opt/forex_ai_trader/venv/bin/streamlit run dashboard/app.py \
+    --server.port=8501 \
+    --server.headless=true \
+    --server.address=127.0.0.1
+
+Restart=on-failure
+RestartSec=15s
+TimeoutStopSec=20s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forex-ai-dashboard
+
+[Install]
+WantedBy=multi-user.target
