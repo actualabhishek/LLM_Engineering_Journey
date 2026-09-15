@@ -588,3 +588,7 @@ MIT — use freely, trade responsibly.
 ---
 
 16 years of networks, now speaking Python. Still learning, still building.
+
+---
+
+Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.

@@ -58,6 +58,11 @@ LLM_Engineering_Journey/
 │                                 # browser automation, Pydantic hand-offs,
 │                                 # supervised send-gate, Airtable-backed resume
 │
+├── AI_Forex_Bot/                 # Autonomous MT5 forex trading system —
+│                                 # deterministic technical analysis + selective
+│                                 # LLM reasoning, TradingView webhook signals,
+│                                 # multi-layer risk management, Streamlit dashboard
+│
 ├── ResumeRocket AI/              # End-to-end resume tailoring pipeline
 │                                 # (gap analysis, rewrite, diff, cover letter)
 │
@@ -105,6 +110,7 @@ Six apps built to solve real problems, not just demo a model:
 - **Network_KB_RAG_Claude** — the LangGraph notebook above, grown into a real app. Same self-correcting retrieval idea, but pushed further: `retrieve` (Chroma) → `grade_documents` (Haiku, relevance filter) → `generate` (Opus, answer synthesis) → `evaluate_answer` (Haiku, groundedness + relevance check) → `finalize`, with a retry loop if the answer doesn't hold up, served through a Gradio UI with real-time token streaming. Still pointed at my own TCS network SOPs as the test knowledge base.
 - **multi_agent_system** — a Researcher → Analyst → Writer pipeline built with OpenAI's Agents SDK. A Tavily-backed Researcher gathers facts via tool calling (fact-only, no analysis), an Analyst extracts trends and risks from those facts, and a Writer turns that into a polished Markdown report — all chained through one `manager_run()` call, with Pydantic models (`ResearchOutput`, `AnalystOutput`) defining the handoff contract between agents and a shared `SQLiteSession` giving every agent visibility into the full run.
 - **Store_Down_Automation** — a real NOC runbook automated end to end: four scoped subagents (incident watcher, directory lookup, email composer, logger) plus a deterministic Dispatcher coordinator, typed Pydantic hand-offs validated at every step, browser automation against systems with zero API access. The write-up covers three real debugging stories — discovering a directory site's hover contact-card was the actual source of truth for personal emails, tracing an "address-book search doesn't work" failure back to a wrong signed-in Microsoft account, and catching a UI that displays the literal text "No Match" in place of a name before it could get treated as real data.
+- **AI_Forex_Bot** — an autonomous forex trading system for MT5: deterministic technical analysis (multi-timeframe alignment, an 8-factor 0-100 confidence score) feeds a hybrid decision engine that only calls an LLM when the signal is genuinely ambiguous (score 55-75), with a hard cap on how much the LLM can move the needle. TradingView webhooks (HMAC-validated) supply signals, a multi-layer risk engine gates every trade, and a Streamlit dashboard shows it live. The README documents a real debugging story: a 270-day gold (XAUUSD) backtest that looked fine until I fixed a pip-value bug specific to metals — the honest result was a 127% max drawdown, traced back to the broker's minimum lot size silently overriding the risk engine's 1%-per-trade target. Gold stays out of the live pair list until that's actually solved.
 - **ResumeRocket AI** — gap analysis, tailored rewrite, visual diff, and cover letter generation from a resume + job description.
 - **CiscoConfigDiffAuditor** — a block-aware diff viewer for Cisco IOS configs, because a raw line diff on a reordered config tells you nothing. Flags security-relevant changes (ACLs, `shutdown`, `line vty`, `enable secret`) automatically.
 - **LinkedIn_Post_Automation** — a Claude Code plugin that runs my LinkedIn content pipeline end to end: a Telegram message kicks off research, a draft in my own voice, an AI-generated image, and an Airtable-tracked approval step, then publishes to LinkedIn via Playwright once I approve.
@@ -128,7 +134,6 @@ Every notebook follows the same pattern: Markdown documentation and inline obser
 This repo is one piece of a larger applied-AI portfolio I'm building alongside my day job. Related tracks, documented separately, for context:
 
 - 🤖 **Network AI Agents** — Copilot Studio Roster Maker agent, Network Ops Daily Standup bot (Power Automate + Dataverse)
-- 📈 **ForexAI Trader** — leading-indicator signal engine (RSI divergence, retest entries) with an LLM-based validator/veto layer
 - 📊 **NIFTY 50 Options Bot** — momentum-based decision engine with an LLM veto layer and live news intelligence
 
 ---
