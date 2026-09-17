@@ -61,7 +61,7 @@ flowchart TD
 
 **No API access exists for any of the three internal systems** — everything is real browser automation against the actual web UI, driving an already-authenticated session. That constraint shaped the whole design: every hand-off between agents is a typed Pydantic schema, not free text, so a malformed result gets caught before it can propagate a wrong store or a wrong recipient downstream.
 
-## Three things I got wrong before I got them right
+## Four things I got wrong before I got them right
 
 This is the part I actually want to write up, because catching your own mistakes with evidence is the whole job.
 
@@ -71,6 +71,8 @@ This is the part I actually want to write up, because catching your own mistakes
 
 **3. The directory page will show you a *literal placeholder* as if it were a name.** For one role with nobody currently assigned, the page displayed the string "No Match" in the exact spot where a person's name normally goes — same font, same layout. An agent that just reads whatever text is there would report "No Match" as somebody's actual name and try to email it. Now the agent explicitly checks for that string and treats it as "nobody assigned," not as data.
 
+**4. The email template had a placeholder that was never actually wired up — in production the whole time.** Once the dev-mode lane below let me run the pipeline end to end for the first time, I read the actual drafted email and caught it: the store code in the body was a literal, never-substituted `Store #`, not the real code, in every message the template had ever produced. Fixed the template and the agent doc that described it, then corrected the already-created draft to confirm the fix held. Running the full loop safely is what surfaced a bug that had been sitting in the design the whole time.
+
 None of these were caught by writing better prompts. They were caught by actually running the thing against real data and looking hard at what came back — which is, I think, the actual skill this project was practice for.
 
 ## Design decisions that mattered
@@ -78,6 +80,7 @@ None of these were caught by writing better prompts. They were caught by actuall
 - **Nothing is ever guessed.** Every "what if the data's missing or weird" case (an unassigned role, a store not in the directory, an ambiguous match) gets reported honestly rather than papered over with an assumption.
 - **The riskiest action is the most controlled.** A `send_mode` setting decides whether every email needs a human's explicit go-ahead (`supervised`, the default) or goes automatically (`autonomous`, switched on only once the pipeline's proven itself) — plus a separate kill switch that can halt everything, instantly.
 - **The system resumes, it doesn't repeat.** If it's interrupted mid-incident, the Airtable log tells it exactly which step to resume at — it will never re-send an email or reprocess a ticket it already closed.
+- **A safe dev-mode lane exists for exercising the whole thing without touching anything real.** It points the ticketing agent at a sandboxed instance and swaps the email agent's send capability for a draft-only personal-inbox tool, so a "send" is structurally impossible rather than just instructed against — which means, unlike in production, the finalize step (state change + close-out note) is actually safe to test too. Every file the switch touches gets backed up first, with a documented restore path back to production.
 - **Every design correction is logged with what actually happened, not just the fix** — the debugging stories above all came out of a running build log I kept the whole way through, timestamped, append-only, never edited after the fact.
 
 ## Tech stack
@@ -90,7 +93,7 @@ None of these were caught by writing better prompts. They were caught by actuall
 
 ## Status
 
-Built and validated in phases — detection, directory lookup, email composition (validated up to, not including, an actual send), ticket close-out and logging, and the orchestrator tying it together — each one checked against real data before moving to the next. Live end-to-end operation, with a human approving the first real sends, is next.
+Built and validated in phases — detection, directory lookup, email composition (validated up to, not including, an actual send in production), ticket close-out and logging, and the orchestrator tying it together — each one checked against real data before moving to the next. Since then, the dev-mode lane above has let the full pipeline run end-to-end for the first time, finalize step included, with zero real-world risk — which is what caught bug #4 above. Live production operation, with a human approving the first real sends, is next.
 
 ## The actual code
 
