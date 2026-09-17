@@ -98,11 +98,15 @@ export async function POST(request: Request) {
       reasoning: { effort: "low" },
       stream: true,
     });
-    if (!result.ok || !result.body) throw new Error(`OpenRouter request failed (${result.status})`);
+    if (!result.ok || !result.body) {
+      const errorBody = await result.text().catch(() => "");
+      throw new Error(`OpenRouter request failed (${result.status}): ${errorBody.slice(0, 500)}`);
+    }
     return new Response(result.body, {
       headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" },
     });
-  } catch {
+  } catch (err) {
+    console.error("Digital Twin request failed:", err);
     return NextResponse.json({ error: "The Digital Twin is temporarily unavailable. Please try again shortly." }, { status: 502 });
   }
 }
