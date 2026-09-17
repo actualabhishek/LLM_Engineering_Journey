@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Message = { role: "visitor" | "twin"; content: string };
 
@@ -80,7 +82,13 @@ export function DigitalTwin() {
         {messages.filter((message) => message.content).map((message, index) => (
           <div key={`${message.role}-${index}`} className={message.role === "visitor" ? "chat visitor" : "chat twin"}>
             <span className="chat-label">{message.role === "visitor" ? "You" : "AS"}</span>
-            <p>{message.content}</p>
+            {message.role === "twin" ? (
+              <div className="chat-markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+              </div>
+            ) : (
+              <p>{message.content}</p>
+            )}
           </div>
         ))}
         {busy && <div className="chat twin"><span className="chat-label">AS</span><p className="pulse">Thinking through the relevant context…</p></div>}
