@@ -76,6 +76,10 @@ LLM_Engineering_Journey/
 │                                 # Claude research + drafting, Gemini image gen,
 │                                 # Airtable tracking, Playwright publish
 │
+├── Portfolio_Website/            # Next.js portfolio site with an AI "Digital
+│                                 # Twin" chat agent grounded in my own resume,
+│                                 # served through a server-side OpenRouter route
+│
 ├── .gitignore
 └── README.md
 ```
@@ -118,6 +122,9 @@ Seven apps built to solve real problems, not just demo a model:
 ### 6. Fine-Tuning
 QLoRA experiments on TinyLlama and Gemma — 4-bit quantized base model, LoRA adapters on the attention projections, trained with `trl`'s `SFTTrainer`, then compared side by side against the frozen base model using `peft`'s `disable_adapter()` context manager (no second model load needed) to see exactly what the fine-tune changed.
 
+### 7. Portfolio Website & Digital Twin
+Where the journey gets a front door. A Next.js (App Router, TypeScript, Tailwind) portfolio site that has to do two jobs at once: read as a credible engineering portfolio, and let visitors actually talk to an AI version of me. The Digital Twin is a server-side route that calls OpenRouter, grounded in a condensed context file built from my real resume — not the raw PDF, and not a general-purpose chatbot. It answers in first person, stays inside the facts it's given, and is built to resist prompt-injection attempts from visitors poking at it, which doubles as a live demo of taking that seriously rather than just claiming to. Deployed on Vercel.
+
 Every notebook follows the same pattern: Markdown documentation and inline observations after every meaningful block, so it reads as a record of what I learned — not just what ran.
 
 ---
@@ -127,7 +134,8 @@ Every notebook follows the same pattern: Markdown documentation and inline obser
 - **Frameworks:** 🤗 Transformers, PyTorch, BitsAndBytes, Accelerate, LangGraph, AutoGen, OpenAI Agents SDK, Claude Code (subagents + skills)
 - **Models:** Llama (3.1 / 3.2), Phi, Gemma, Qwen, DeepSeek, Whisper, SDXL, SpeechT5, gpt-5-mini
 - **Tools:** Google Colab (T4 GPU), Gradio, Hugging Face Hub, Chroma, Pydantic, Playwright/browser automation, Airtable
-- **APIs:** Anthropic Claude, OpenAI, Gemini (via OpenRouter), Tavily
+- **Web:** Next.js (App Router), TypeScript, Tailwind CSS, Vercel
+- **APIs:** Anthropic Claude, OpenAI, Gemini, OpenRouter, Tavily
 - **Techniques:** 4-bit NF4 quantization, chat-template prompting, streaming generation, structured-output prompting, RAG with self-grading retrieval, groundedness evaluation, schema-constrained synthetic data generation, typed multi-agent hand-off contracts
 
 ---
