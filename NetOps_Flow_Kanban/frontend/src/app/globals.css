@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces step up in luminance: nav -> field -> surface -> raised.
+     On dark this is what carries depth, since shadows read as nothing. */
+  --color-nav: #0a0f17;
+  --color-field: #0d141e;
+  --color-surface: #16202d;
+  --color-raised: #1e2937;
+  --color-line: #2a3646;
+
+  --color-ink: #dde4ec;
+  --color-muted: #93a1b3;
+
+  /* Status hues, lifted from the light theme so they read on a dark field */
+  --color-accent-blue: #5b9fd6;
+  --color-success-green: #52a978;
+  --color-warning-amber: #d6a53c;
+  --color-danger-red: #d96b6b;
+  --color-accent-purple: #9c86c7;
+
+  /* Filled controls keep the deeper blue so white label text stays legible */
+  --color-accent-solid: #2f6690;
+  --color-accent-solid-hover: #3a7aab;
+}
+
+@theme inline {
+  --color-nav: var(--color-nav);
+  --color-field: var(--color-field);
+  --color-surface: var(--color-surface);
+  --color-raised: var(--color-raised);
+  --color-line: var(--color-line);
+  --color-ink: var(--color-ink);
+  --color-muted: var(--color-muted);
+  --color-accent-blue: var(--color-accent-blue);
+  --color-success-green: var(--color-success-green);
+  --color-warning-amber: var(--color-warning-amber);
+  --color-danger-red: var(--color-danger-red);
+  --color-accent-purple: var(--color-accent-purple);
+  --color-accent-solid: var(--color-accent-solid);
+  --color-accent-solid-hover: var(--color-accent-solid-hover);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--color-field);
+  color: var(--color-ink);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::placeholder {
+  color: var(--color-muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-blue);
+  outline-offset: 2px;
+}

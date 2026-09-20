@@ -1,0 +1,20 @@
+.git
+.env
+.env.*
+!.env.example
+
+# node
+**/node_modules
+frontend/.next
+frontend/out
+
+# python
+**/__pycache__
+**/*.pyc
+backend/.venv
+
+# local db and test output
+**/*.db
+frontend/test-results
+frontend/playwright-report
+.playwright-mcp
