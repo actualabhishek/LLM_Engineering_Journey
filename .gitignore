@@ -1,1 +1,4 @@
-/.env
+# secrets - at any level, not just the repo root
+.env
+.env.*
+!.env.example
