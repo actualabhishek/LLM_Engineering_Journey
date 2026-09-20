@@ -80,6 +80,11 @@ LLM_Engineering_Journey/
 │                                 # Twin" chat agent grounded in my own resume,
 │                                 # served through a server-side OpenRouter route
 │
+├── NetOps_Flow_Kanban/           # Kanban board for network ops with an AI
+│                                 # sidebar that creates, edits and moves cards —
+│                                 # FastAPI serving a Next.js static export,
+│                                 # SQLite, one Docker container
+│
 ├── .gitignore
 └── README.md
 ```
@@ -110,7 +115,7 @@ Built up from first principles: chunking strategies, embeddings, retrieval, then
 Two different takes on multi-step, multi-agent systems: a self-correcting RAG pipeline that grades its own retrieval and retries on weak matches (LangGraph), and a multi-provider agent team where OpenAI, Gemini, and Claude each play a distinct role in one group chat (AutoGen).
 
 ### 5. Applied Tools
-Seven apps built to solve real problems, not just demo a model:
+Eight apps built to solve real problems, not just demo a model:
 - **Network_KB_RAG_Claude** — the LangGraph notebook above, grown into a real app. Same self-correcting retrieval idea, but pushed further: `retrieve` (Chroma) → `grade_documents` (Haiku, relevance filter) → `generate` (Opus, answer synthesis) → `evaluate_answer` (Haiku, groundedness + relevance check) → `finalize`, with a retry loop if the answer doesn't hold up, served through a Gradio UI with real-time token streaming. Still pointed at my own TCS network SOPs as the test knowledge base.
 - **multi_agent_system** — a Researcher → Analyst → Writer pipeline built with OpenAI's Agents SDK. A Tavily-backed Researcher gathers facts via tool calling (fact-only, no analysis), an Analyst extracts trends and risks from those facts, and a Writer turns that into a polished Markdown report — all chained through one `manager_run()` call, with Pydantic models (`ResearchOutput`, `AnalystOutput`) defining the handoff contract between agents and a shared `SQLiteSession` giving every agent visibility into the full run.
 - **Store_Down_Automation** — a real NOC runbook automated end to end: four scoped subagents (incident watcher, directory lookup, email composer, logger) plus a deterministic Dispatcher coordinator, typed Pydantic hand-offs validated at every step, browser automation against systems with zero API access. A safe dev-mode lane (sandboxed ticketing instance, draft-only notifications to a personal inbox) now lets the full pipeline — finalize step included — run end to end with zero real-world risk. The write-up covers four real debugging stories, the latest one only surfaced by that first end-to-end dev-mode run: discovering a directory site's hover contact-card was the actual source of truth for personal emails, tracing an "address-book search doesn't work" failure back to a wrong signed-in Microsoft account, catching a UI that displays the literal text "No Match" in place of a name before it could get treated as real data, and finding a store-code placeholder in the email template that had never actually been wired up.
@@ -118,6 +123,7 @@ Seven apps built to solve real problems, not just demo a model:
 - **ResumeRocket AI** — gap analysis, tailored rewrite, visual diff, and cover letter generation from a resume + job description.
 - **CiscoConfigDiffAuditor** — a block-aware diff viewer for Cisco IOS configs, because a raw line diff on a reordered config tells you nothing. Flags security-relevant changes (ACLs, `shutdown`, `line vty`, `enable secret`) automatically.
 - **LinkedIn_Post_Automation** — a Claude Code plugin that runs my LinkedIn content pipeline end to end: a Telegram message kicks off research, a draft in my own voice, an AI-generated image, and an Airtable-tracked approval step, then publishes to LinkedIn via Playwright once I approve.
+- **NetOps_Flow_Kanban** — a Kanban board built for how network teams actually track work: cards are change requests, incidents and tasks, with ticket ids, P1/P2 priorities and CAB approval windows. The AI sidebar doesn't just talk about the board, it changes it — create a card, edit one, move it between columns, rename a column, or several in a single instruction. Board state goes to the model with every message so it can act on cards by ticket id, and what comes back is a small JSON list of actions the backend validates and applies against SQLite. No agent framework; a typed contract and the same ordering and uniqueness rules the UI writes through. It ships as one container: FastAPI serves the API and a Next.js static export from a single origin, so there's no Node process at runtime. Two things worth writing down. A full code review caught that drag-and-drop reordering was never actually persisting — only the dragged card's position was being written, so positions collided and `ORDER BY position` quietly handed back the old order on reload; it looked fine until you refreshed. And a 20-second delay on every AI call that I spent a while blaming on the model turned out to be dead IPv6 on my own machine: `httpx` was waiting out the full connect timeout before falling back to IPv4, and a no-inference request to the same host took exactly as long. The container never had the problem. Good reminder to measure the thing you're actually accusing.
 
 ### 6. Fine-Tuning
 QLoRA experiments on TinyLlama and Gemma — 4-bit quantized base model, LoRA adapters on the attention projections, trained with `trl`'s `SFTTrainer`, then compared side by side against the frozen base model using `peft`'s `disable_adapter()` context manager (no second model load needed) to see exactly what the fine-tune changed.
@@ -133,8 +139,8 @@ Every notebook follows the same pattern: Markdown documentation and inline obser
 
 - **Frameworks:** 🤗 Transformers, PyTorch, BitsAndBytes, Accelerate, LangGraph, AutoGen, OpenAI Agents SDK, Claude Code (subagents + skills)
 - **Models:** Llama (3.1 / 3.2), Phi, Gemma, Qwen, DeepSeek, Whisper, SDXL, SpeechT5, gpt-5-mini
-- **Tools:** Google Colab (T4 GPU), Gradio, Hugging Face Hub, Chroma, Pydantic, Playwright/browser automation, Airtable
-- **Web:** Next.js (App Router), TypeScript, Tailwind CSS, Vercel
+- **Tools:** Google Colab (T4 GPU), Gradio, Hugging Face Hub, Chroma, Pydantic, Playwright/browser automation, Airtable, Docker
+- **Web:** Next.js (App Router), TypeScript, Tailwind CSS, Vercel, FastAPI, SQLite
 - **APIs:** Anthropic Claude, OpenAI, Gemini, OpenRouter, Tavily
 - **Techniques:** 4-bit NF4 quantization, chat-template prompting, streaming generation, structured-output prompting, RAG with self-grading retrieval, groundedness evaluation, schema-constrained synthetic data generation, typed multi-agent hand-off contracts
 
@@ -166,3 +172,5 @@ Feedback, questions, or collaboration ideas are welcome — open an issue or con
 </div>
 
 Still learning, still building. Onward — one commit at a time.
+
+Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
