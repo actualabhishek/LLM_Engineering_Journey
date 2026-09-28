@@ -1,0 +1,13 @@
+.env
+__pycache__/
+.venv/
+node_modules/
+.next/
+out/
+backend/app/static/
+*.db
+/data/
+models/
+test-results/
+playwright-report/
+.claude/scheduled_tasks.lock
