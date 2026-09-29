@@ -21,6 +21,19 @@ The two talk to each other over the network — the app never needs its own GPU.
 - **Text-to-speech:** Kokoro for English, Indic Parler-TTS for Hindi — so the reply is actually spoken back.
 - **Voice detection:** Silero VAD, running right in the guest's browser, to notice when they start and stop talking (and to let them interrupt the assistant mid-sentence).
 
+## How it was built: Claude Code sub-agents
+
+The code itself was written by [Claude Code](https://claude.com/claude-code), phase by phase, using six specialized sub-agents — each one only touches its own part of the codebase, so nothing gets tangled together:
+
+- **backend-engineer** — the FastAPI app: database models, migrations, seed data, and the booking/loyalty/check-in/admin logic.
+- **llm-agent-engineer** — the LLM's tool-calling loop, the "confirm before you actually book/cancel/redeem anything" safety step, and the hotel knowledge base fed into the system prompt.
+- **voice-engineer** — the GPU worker (speech-to-text and text-to-speech) and the app's side of the voice pipeline.
+- **frontend-engineer** — the guest voice page and the admin page.
+- **test-engineer** — wrote and ran the tests, and recorded real proof for every phase in [docs/progress.md](docs/progress.md).
+- **security-reviewer** — a read-only pass before closing each phase: checks that a guest's identity always comes from the session (never something the LLM could be tricked into faking), that the confirm-before-acting step can't be skipped, that no card details or audio are ever saved, and that nothing sneaks in beyond what was actually planned.
+
+Every phase went: plan it → build it with the right sub-agent(s) → test it → security-review it → prove it with real commands and real output, before moving to the next phase.
+
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
