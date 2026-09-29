@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GREETING = "Namaste! Welcome to Velvet Vista Hotel. How can I help you today?"
+GREETING = "Namaste! I'm Divya, your concierge at Velvet Vista Hotel. How can I help you today?"
 
 MUTATING_TOOLS = {
     "create_booking",
@@ -28,10 +28,17 @@ MUTATING_TOOLS = {
 }
 
 _DEVANAGARI_RE = re.compile(r"[ऀ-ॿ]")
+_MARKDOWN_RE = re.compile(r"\*\*|\*|`|^#+\s*", re.MULTILINE)
 
 
 def _reply_language(text: str) -> str:
     return "hi" if _DEVANAGARI_RE.search(text) else "en"
+
+
+def _strip_markdown(text: str) -> str:
+    # The LLM is told not to use markdown, but sometimes slips (e.g. "**confirmed!**")
+    # - replies are spoken aloud and shown as plain captions, so strip it defensively.
+    return _MARKDOWN_RE.sub("", text)
 
 
 async def _speak_sentences(ws: WebSocket, reply: str, language: str) -> None:
@@ -94,6 +101,7 @@ async def voice_ws(ws: WebSocket) -> None:
 
                 history_len = len(history)
                 reply = await run_in_threadpool(run_turn, client, db, session, history, transcript)
+                reply = _strip_markdown(reply)
 
                 db.add(Message(conversation_id=conversation.id, role="assistant", content=reply))
                 if session.guest_id is not None and conversation.guest_id is None:

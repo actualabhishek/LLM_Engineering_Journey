@@ -1,26 +1,69 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --velvet: #1c3b33;
+  --velvet-deep: #0f2620;
+  --gold: #c6a15b;
+  --gold-bright: #e3c888;
+  --wine: #6b2438;
+  --parchment: #f4eee2;
+  --error: #b23a4e;
+
+  --background: var(--velvet);
+  --foreground: var(--parchment);
 }
 
 @theme inline {
+  --color-velvet: var(--velvet);
+  --color-velvet-deep: var(--velvet-deep);
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-wine: var(--wine);
+  --color-parchment: var(--parchment);
+  --color-error: var(--error);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-work-sans);
+  --font-serif: var(--font-fraunces);
 }
 
 body {
-  background: var(--background);
+  background: radial-gradient(ellipse at top, var(--velvet) 0%, var(--velvet-deep) 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes orb-pulse-listening {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(198, 161, 91, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(198, 161, 91, 0);
+  }
+}
+
+@keyframes orb-pulse-speaking {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(107, 36, 56, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(107, 36, 56, 0);
+  }
+}
+
+.orb-listening {
+  animation: orb-pulse-listening 2s ease-in-out infinite;
+}
+
+.orb-speaking {
+  animation: orb-pulse-speaking 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-listening,
+  .orb-speaking {
+    animation: none;
+  }
 }

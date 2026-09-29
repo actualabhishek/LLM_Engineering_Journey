@@ -678,3 +678,39 @@ Reported: Hindi replies still sometimes mispronounce words. Two concrete, reprod
 2. **Stray typographic punctuation from the LLM.** Found `‑` (non-breaking hyphen) in real Hindi output (e.g. "चेक‑इन") - a character Indic Parler-TTS almost certainly saw rarely in training, likely to be mispronounced or cause an odd pause. Added a small translation table to `backend/app/voice/normalize.py`'s `to_hindi_speech_text()`: non-breaking/en/em hyphens -> plain `-`, non-breaking and narrow no-break spaces -> plain space. Verified directly: input containing `‑` and ` ` comes out with neither character present.
 
 Re-ran `cd backend && uv run pytest -q` after both fixes: `70 passed`, no regressions (existing `test_voice_normalize.py` tests unaffected since the new cleanup runs before the existing number-conversion regex).
+
+## Frontend redesign: professional brand identity, and Divya
+
+Requested: a professional look with the hotel's name/logo, and a female name for the assistant. Full design plan (color/type/layout tokens, principles, checked against generic-AI-page tells) executed via `frontend-engineer` - see the commit for the complete token system. Summary: a fixed dark-velvet brand theme (`--velvet #1c3b33`, `--velvet-deep #0f2620`, `--gold #c6a15b`, `--wine #6b2438`, `--parchment #f4eee2`), Fraunces (display serif) + Work Sans (body) replacing Geist, a new inline-SVG "VV" monogram logo (`components/Logo.tsx`), the guest page restructured into a single centered stage (logo/name, a large voice orb replacing the plain Start button, chat-bubble captions, ticket-style summary cards), and the same branded header added to the admin page. All existing Playwright `data-testid`s preserved and the full suite re-verified passing against the redesign.
+
+**Assistant name: Divya** - reused from the GPU worker's existing `DIVYA_DESCRIPTION` Parler-TTS persona name (Phase 2) rather than inventing a new one, so backend and guest-facing identity now match. Added to `agent/prompt.py` ("Your name is Divya... only introduce yourself when asked or in the first greeting") and the static `GREETING` in `voice/ws.py`. Verified with real `run_turn` calls in both languages: "My name is Divya." / "मैं दिव्या हूँ।" (correctly transliterated per the earlier pronunciation fix).
+
+**Bugs found and fixed while reviewing the redesign's own screenshots** (self-critique, not something asked for but caught by actually looking at the output):
+- The logo's two V's were positioned too close together, reading as a "W" at a glance - widened the gap in `Logo.tsx` so it unambiguously reads as two separate V's.
+- The LLM was leaking literal markdown into spoken/captioned replies ("Your booking is **confirmed!**"). Added an explicit "never use markdown" prompt instruction, plus a defensive strip (`_strip_markdown` in `ws.py`) applied to every reply regardless, since prompt instructions alone don't reliably suppress this.
+- `SummaryCard` showed a raw `null` for empty `special_requests`, and awkward technical labels ("Total Price Paise", redundant "Room Type Code" next to "Room Type Name"). Added a field-label override map and hid null-valued/redundant fields.
+
+## Serious finding: openai/gpt-oss-120b output corruption on OpenRouter
+
+While re-verifying the redesign against a real conversation, found the assistant's booking-confirmation reply contained visible leaked model reasoning ("The assistant response appears corrupted. Need to correct: respond with proper confirmation..."). Investigated properly rather than patching blind:
+
+1. Confirmed via OpenRouter's docs that reasoning models expose a separate `message.reasoning` field, with a `reasoning: {"exclude": true}` request option to suppress it entirely - added this to `agent/loop.py`. This did NOT fix the underlying issue.
+2. A/B tested with and without `exclude` (6 real booking flows each): corruption occurred in both configurations, ruling out `exclude` as the cause. Confirmed via `response.model_dump()["provider"]` that OpenRouter round-robins this model across multiple backend providers (Together, Crusoe, DekaLLM observed in 3 consecutive calls) - the corruption is a reliability issue with the model/provider combination, not this app's code.
+3. Observed failure signature: the model's generation sometimes degenerates into runs of invisible Unicode characters (zero-width space/joiner, U+200B-U+2060), sometimes followed by it visibly narrating its own self-correction ("It looks like the previous response got garbled... Let's produce a proper reply") before giving the real answer - all concatenated into one message.
+4. Added defense in depth in `agent/loop.py`: `_looks_garbled()` checks for (a) a run of invisible Unicode characters, (b) low alphanumeric density, or (c) telltale self-correction phrases: `run_turn` retries up to `MAX_GARBLED_RETRIES = 3` additional times (4 total attempts) when the final reply matches.
+
+**This substantially reduces but does not eliminate the problem.** Stress-testing the exact same booking flow 6 times after the fix: 2 of 6 still returned a visibly corrupted final reply even after exhausting all 4 attempts; several of the "clean" ones still contained minor stray artifacts (stray asterisks, a duplicated word) that downstream cleanup (markdown-strip, `to_hindi_speech_text`) happens to catch. This is flagged to the user directly as a real, unresolved reliability issue with the current LLM choice/provider routing, not something silently patched over - see the conversation for the recommendation and decision.
+
+Re-ran `cd backend && uv run pytest -q` after the loop.py changes (updated the fake-LLM test client to accept the new `extra_body` parameter): `70 passed`, no regressions.
+
+## Provider switch: openai/gpt-oss-120b -> google/gemini-3.8-flash
+
+Decided not to keep papering over the corruption bug above and instead switched the LLM. Root cause was specifically OpenRouter's *multi-provider* routing of an open-weight model (Together, Crusoe, DekaLLM) - so the fix was to pick a model OpenRouter serves from a single first-party backend, removing that failure mode entirely rather than continuing to patch around it.
+
+Checked OpenRouter's live model list (`GET https://openrouter.ai/api/v1/models`) rather than relying on memory (CLAUDE.md rule 1): `google/gemini-2.5-flash` looked reasonable but its `expiration_date` field showed `2026-10-20` (the whole 2.5 generation is being sunset in ~3 weeks) - ruled out for a portfolio piece meant to keep working. `google/gemini-3.8-flash` is the current, non-expiring, non-preview flash release: supports `tools`, single Google-hosted provider, $0.75/$3.75 per M input/output tokens (pricier than gpt-oss-120b but still trivial at this project's scale).
+
+Verified before switching:
+- `cd backend && uv run python -m scripts.agent_transcript` (with `LLM_MODEL=google/gemini-3.8-flash`) - both the English (check-in) and Hindi (cancellation) propose->confirm transcripts passed, correct tool calls, correct feminine Hindi grammar, correct name transliteration for the last-name lookup.
+- An 8-run stress test of the same cancel-booking propose->confirm cycle that previously corrupted 2/6 times on gpt-oss-120b: **0/8 runs corrupted** on gemini-3.8-flash.
+
+Changes: `backend/app/config.py` (`llm_model` default), `.env`/`.env.example`, `docs/PLAN.md`'s stack table. Also reverted `agent/loop.py` to a plain single-call loop - the `_looks_garbled()` detector and retry logic were a workaround for gpt-oss-120b's specific corruption signature and are unneeded complexity now that the root cause is gone (CLAUDE.md rule 2: no unnecessary defensive programming). Kept `extra_body={"reasoning": {"exclude": True}}` since Gemini 3.8 Flash's reasoning is mandatory-but-hideable and excluding it from the response is still the right call for a voice app. Re-ran `cd backend && uv run pytest -q`: `70 passed`.

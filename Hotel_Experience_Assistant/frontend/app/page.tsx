@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CaptionList } from "@/components/CaptionList";
 import { SummaryCard } from "@/components/SummaryCard";
+import { Logo } from "@/components/Logo";
 import { connect, type Caption, type Card } from "@/lib/websocket";
 import { createPlaybackQueue } from "@/lib/playback";
 import { createVad } from "@/lib/vad";
@@ -66,27 +67,47 @@ export default function Home() {
     vad.start();
   }
 
+  const orbPulseClass =
+    status === "listening" ? "orb-listening" : status === "speaking" ? "orb-speaking" : "";
+
   return (
     <div className="flex flex-1 flex-col items-center px-4">
-      <h1 className="text-3xl font-semibold mt-8 mb-4">Hotel Experience Assistant</h1>
+      <div className="flex flex-col items-center gap-3 mt-10 mb-8">
+        <Logo size={64} />
+        <h1 className="font-serif text-3xl font-semibold text-parchment">Velvet Vista Hotel</h1>
+      </div>
 
       {!started ? (
-        <>
-          <button
-            onClick={handleStart}
-            className="rounded-full bg-blue-600 text-white px-8 py-3 text-lg font-medium"
-          >
-            Start
-          </button>
-          <p className="text-gray-500 text-sm mt-3 max-w-xs text-center">
-            An AI assistant will process this conversation.
-          </p>
-        </>
+        <button
+          onClick={handleStart}
+          className="w-48 h-48 rounded-full border-2 border-gold text-parchment font-medium hover:border-gold-bright transition-colors"
+          style={{
+            background: "radial-gradient(circle at center, var(--velvet-deep) 0%, var(--velvet) 100%)",
+          }}
+        >
+          Start
+        </button>
       ) : (
-        <p className="text-gray-600 mb-4">{status === "speaking" ? "Speaking…" : "Listening…"}</p>
+        <div
+          className={`w-48 h-48 rounded-full border-2 border-gold ${orbPulseClass}`}
+          style={{
+            background: "radial-gradient(circle at center, var(--velvet-deep) 0%, var(--velvet) 100%)",
+          }}
+        />
       )}
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <div className="flex flex-col items-center gap-1 mt-5 text-center">
+        {started && (
+          <p className="text-parchment/80">{status === "speaking" ? "Speaking…" : "Listening…"}</p>
+        )}
+        {!started && (
+          <p className="text-parchment/60 text-sm max-w-xs">
+            An AI assistant will process this conversation.
+          </p>
+        )}
+      </div>
+
+      {error && <p className="text-error text-sm mt-3">{error}</p>}
 
       <CaptionList captions={captions} />
 

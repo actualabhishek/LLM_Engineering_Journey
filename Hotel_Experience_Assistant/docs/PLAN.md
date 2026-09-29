@@ -12,7 +12,7 @@ A voice concierge for a hotel. Guests **talk** to it hands-free and it **talks b
 ```
 Browser ──WebSocket──▶ App (Docker on your PC, CPU) ──HTTPS──▶ GPU worker (Modal, T4)
   mic + VAD               UI, API, SQLite, agent                  Whisper STT
-  speaker                 LLM calls (HF Inference Providers)      Kokoro TTS (English)
+  speaker                 LLM calls (OpenRouter)                  Kokoro TTS (English)
                                                                    Indic Parler-TTS (Hindi)
 ```
 
@@ -30,7 +30,7 @@ The app only knows `GPU_WORKER_URL` and `GPU_WORKER_TOKEN`, so the worker can mo
 | App backend | Python, FastAPI, SQLAlchemy + Alembic, SQLite, `uv` |
 | App frontend | Next.js (static export), TypeScript, Tailwind. Served by FastAPI |
 | Voice activity (in browser) | Silero VAD via `@ricky0123/vad-web` |
-| LLM | OpenRouter via the `openai` SDK (`base_url=https://openrouter.ai/api/v1`, `OPENROUTER_API_KEY`). Default `openai/gpt-oss-120b` (cheap: $0.03/$0.17 per M input/output tokens) |
+| LLM | OpenRouter via the `openai` SDK (`base_url=https://openrouter.ai/api/v1`, `OPENROUTER_API_KEY`). Default `google/gemini-3.8-flash` (single first-party provider, cheap: $0.75/$3.75 per M input/output tokens) |
 | Speech-to-text (worker) | `openai/whisper-large-v3-turbo` via `faster-whisper` (English, Hindi, Hinglish) |
 | Text-to-speech (worker) | English: `hexgrad/Kokoro-82M` (voice `af_heart`). Hindi: `ai4bharat/indic-parler-tts` (speaker `Divya`) |
 | GPU worker hosting | Modal, T4 GPU |
@@ -115,7 +115,7 @@ Hotel_Experience_Assistant/
 App (`.env.example`):
 ```
 OPENROUTER_API_KEY=
-LLM_MODEL=openai/gpt-oss-120b
+LLM_MODEL=google/gemini-3.8-flash
 GPU_WORKER_URL=
 GPU_WORKER_TOKEN=
 ADMIN_PASSWORD=

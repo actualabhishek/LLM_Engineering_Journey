@@ -14,6 +14,16 @@ import {
   type Conversation,
   type Message,
 } from "@/lib/admin";
+import { Logo } from "@/components/Logo";
+
+function Header() {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      <Logo size={32} />
+      <span className="font-serif text-xl font-semibold text-parchment">Velvet Vista Hotel</span>
+    </div>
+  );
+}
 
 function formatPaise(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -84,7 +94,8 @@ export default function AdminPage() {
   if (!authenticated) {
     return (
       <div className="flex flex-1 flex-col items-center px-4 mt-16">
-        <h1 className="text-2xl font-semibold mb-6">Admin Login</h1>
+        <Header />
+        <h1 className="text-2xl font-semibold mb-6 text-parchment">Admin Login</h1>
         <form
           data-testid="admin-login"
           onSubmit={handleLogin}
@@ -95,15 +106,15 @@ export default function AdminPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="border border-gray-300 rounded px-3 py-2"
+            className="border border-gold/40 bg-parchment text-velvet-deep rounded px-3 py-2"
           />
           <button
             type="submit"
-            className="rounded bg-blue-600 text-white px-4 py-2 font-medium"
+            className="rounded bg-gold text-velvet-deep px-4 py-2 font-medium"
           >
             Log in
           </button>
-          {loginError && <p className="text-red-600 text-sm">{loginError}</p>}
+          {loginError && <p className="text-error text-sm">{loginError}</p>}
         </form>
       </div>
     );
@@ -112,44 +123,44 @@ export default function AdminPage() {
   return (
     <div className="flex flex-1 flex-col items-center px-4 py-8 gap-10 w-full">
       <div className="w-full max-w-4xl flex justify-between items-center">
-        <h1 className="text-2xl font-semibold">Admin</h1>
+        <Header />
         <button
           onClick={handleLogout}
-          className="rounded bg-gray-200 px-4 py-2 text-sm font-medium"
+          className="rounded bg-parchment text-velvet-deep px-4 py-2 text-sm font-medium"
         >
           Log out
         </button>
       </div>
 
       <section className="w-full max-w-4xl">
-        <h2 className="text-xl font-semibold mb-3">Bookings</h2>
+        <h2 className="text-xl font-semibold mb-3 text-parchment">Bookings</h2>
         {bookings.length === 0 ? (
-          <p className="text-gray-500">No bookings yet</p>
+          <p className="text-parchment/60">No bookings yet</p>
         ) : (
-          <table data-testid="bookings-table" className="w-full text-sm border-collapse">
+          <table data-testid="bookings-table" className="w-full text-sm border-collapse bg-parchment text-velvet-deep">
             <thead>
-              <tr className="text-left border-b border-gray-300">
-                <th className="py-1 pr-2">Reference</th>
-                <th className="py-1 pr-2">Guest</th>
-                <th className="py-1 pr-2">Room Type</th>
-                <th className="py-1 pr-2">Check-in</th>
-                <th className="py-1 pr-2">Check-out</th>
-                <th className="py-1 pr-2">Guests</th>
-                <th className="py-1 pr-2">Status</th>
-                <th className="py-1 pr-2">Price</th>
+              <tr className="text-left border-b border-velvet-deep/20">
+                <th className="py-1 px-2">Reference</th>
+                <th className="py-1 px-2">Guest</th>
+                <th className="py-1 px-2">Room Type</th>
+                <th className="py-1 px-2">Check-in</th>
+                <th className="py-1 px-2">Check-out</th>
+                <th className="py-1 px-2">Guests</th>
+                <th className="py-1 px-2">Status</th>
+                <th className="py-1 px-2">Price</th>
               </tr>
             </thead>
             <tbody>
               {bookings.map((b) => (
-                <tr key={b.reference} className="border-b border-gray-100">
-                  <td className="py-1 pr-2">{b.reference}</td>
-                  <td className="py-1 pr-2">{b.guest_name}</td>
-                  <td className="py-1 pr-2">{b.room_type_name}</td>
-                  <td className="py-1 pr-2">{b.check_in_date}</td>
-                  <td className="py-1 pr-2">{b.check_out_date}</td>
-                  <td className="py-1 pr-2">{b.num_guests}</td>
-                  <td className="py-1 pr-2">{b.status}</td>
-                  <td className="py-1 pr-2">{formatPaise(b.total_price_paise)}</td>
+                <tr key={b.reference} className="border-b border-velvet-deep/10">
+                  <td className="py-1 px-2">{b.reference}</td>
+                  <td className="py-1 px-2">{b.guest_name}</td>
+                  <td className="py-1 px-2">{b.room_type_name}</td>
+                  <td className="py-1 px-2">{b.check_in_date}</td>
+                  <td className="py-1 px-2">{b.check_out_date}</td>
+                  <td className="py-1 px-2">{b.num_guests}</td>
+                  <td className="py-1 px-2">{b.status}</td>
+                  <td className="py-1 px-2">{formatPaise(b.total_price_paise)}</td>
                 </tr>
               ))}
             </tbody>
@@ -158,28 +169,28 @@ export default function AdminPage() {
       </section>
 
       <section className="w-full max-w-4xl">
-        <h2 className="text-xl font-semibold mb-3">Check-ins</h2>
+        <h2 className="text-xl font-semibold mb-3 text-parchment">Check-ins</h2>
         {checkins.length === 0 ? (
-          <p className="text-gray-500">No check-ins yet</p>
+          <p className="text-parchment/60">No check-ins yet</p>
         ) : (
-          <table data-testid="checkins-table" className="w-full text-sm border-collapse">
+          <table data-testid="checkins-table" className="w-full text-sm border-collapse bg-parchment text-velvet-deep">
             <thead>
-              <tr className="text-left border-b border-gray-300">
-                <th className="py-1 pr-2">Booking Reference</th>
-                <th className="py-1 pr-2">Guest</th>
-                <th className="py-1 pr-2">Arrival Time</th>
-                <th className="py-1 pr-2">Status</th>
-                <th className="py-1 pr-2">Special Requests</th>
+              <tr className="text-left border-b border-velvet-deep/20">
+                <th className="py-1 px-2">Booking Reference</th>
+                <th className="py-1 px-2">Guest</th>
+                <th className="py-1 px-2">Arrival Time</th>
+                <th className="py-1 px-2">Status</th>
+                <th className="py-1 px-2">Special Requests</th>
               </tr>
             </thead>
             <tbody>
               {checkins.map((c) => (
-                <tr key={c.booking_reference} className="border-b border-gray-100">
-                  <td className="py-1 pr-2">{c.booking_reference}</td>
-                  <td className="py-1 pr-2">{c.guest_name}</td>
-                  <td className="py-1 pr-2">{c.arrival_time}</td>
-                  <td className="py-1 pr-2">{c.status}</td>
-                  <td className="py-1 pr-2">{c.special_requests ?? "—"}</td>
+                <tr key={c.booking_reference} className="border-b border-velvet-deep/10">
+                  <td className="py-1 px-2">{c.booking_reference}</td>
+                  <td className="py-1 px-2">{c.guest_name}</td>
+                  <td className="py-1 px-2">{c.arrival_time}</td>
+                  <td className="py-1 px-2">{c.status}</td>
+                  <td className="py-1 px-2">{c.special_requests ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -188,33 +199,33 @@ export default function AdminPage() {
       </section>
 
       <section className="w-full max-w-4xl">
-        <h2 className="text-xl font-semibold mb-3">Conversations</h2>
+        <h2 className="text-xl font-semibold mb-3 text-parchment">Conversations</h2>
         {conversations.length === 0 ? (
-          <p className="text-gray-500">No conversations yet</p>
+          <p className="text-parchment/60">No conversations yet</p>
         ) : (
-          <table data-testid="conversations-table" className="w-full text-sm border-collapse">
+          <table data-testid="conversations-table" className="w-full text-sm border-collapse bg-parchment text-velvet-deep">
             <thead>
-              <tr className="text-left border-b border-gray-300">
-                <th className="py-1 pr-2">Guest</th>
-                <th className="py-1 pr-2">Started</th>
-                <th className="py-1 pr-2">Ended</th>
-                <th className="py-1 pr-2">Language</th>
-                <th className="py-1 pr-2">Messages</th>
-                <th className="py-1 pr-2"></th>
+              <tr className="text-left border-b border-velvet-deep/20">
+                <th className="py-1 px-2">Guest</th>
+                <th className="py-1 px-2">Started</th>
+                <th className="py-1 px-2">Ended</th>
+                <th className="py-1 px-2">Language</th>
+                <th className="py-1 px-2">Messages</th>
+                <th className="py-1 px-2"></th>
               </tr>
             </thead>
             <tbody>
               {conversations.map((c) => (
-                <tr key={c.id} className="border-b border-gray-100">
-                  <td className="py-1 pr-2">{c.guest_name ?? "—"}</td>
-                  <td className="py-1 pr-2">{c.started_at}</td>
-                  <td className="py-1 pr-2">{c.ended_at ?? "—"}</td>
-                  <td className="py-1 pr-2">{c.language ?? "—"}</td>
-                  <td className="py-1 pr-2">{c.message_count}</td>
-                  <td className="py-1 pr-2">
+                <tr key={c.id} className="border-b border-velvet-deep/10">
+                  <td className="py-1 px-2">{c.guest_name ?? "—"}</td>
+                  <td className="py-1 px-2">{c.started_at}</td>
+                  <td className="py-1 px-2">{c.ended_at ?? "—"}</td>
+                  <td className="py-1 px-2">{c.language ?? "—"}</td>
+                  <td className="py-1 px-2">{c.message_count}</td>
+                  <td className="py-1 px-2">
                     <button
                       onClick={() => viewTranscript(c.id)}
-                      className="text-blue-600 underline text-sm"
+                      className="text-wine underline text-sm"
                     >
                       {transcriptId === c.id ? "Hide" : "View"}
                     </button>
@@ -226,7 +237,7 @@ export default function AdminPage() {
         )}
 
         {transcript && (
-          <div data-testid="transcript" className="mt-4 border border-gray-300 rounded p-4">
+          <div data-testid="transcript" className="mt-4 border border-gold/40 bg-parchment text-velvet-deep rounded p-4">
             <h3 className="font-semibold mb-2">Transcript</h3>
             <div className="space-y-2 text-sm">
               {transcript.map((m, i) => (

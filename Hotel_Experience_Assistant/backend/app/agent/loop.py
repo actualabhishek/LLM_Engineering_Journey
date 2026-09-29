@@ -23,6 +23,7 @@ def run_turn(client: OpenAI, db: Session, session: AgentSession, history: list[d
             model=settings.llm_model,
             messages=[{"role": "system", "content": build_system_prompt()}] + history,
             tools=TOOLS,
+            extra_body={"reasoning": {"exclude": True}},
         )
         message = response.choices[0].message
 

@@ -61,8 +61,8 @@ class FakeClient:
         self.chat = self
         self.completions = self
 
-    def create(self, model, messages, tools):
-        self.calls.append({"model": model, "messages": messages, "tools": tools})
+    def create(self, model, messages, tools, extra_body=None):
+        self.calls.append({"model": model, "messages": messages, "tools": tools, "extra_body": extra_body})
         return FakeResponse(self._responses.pop(0))
 
 

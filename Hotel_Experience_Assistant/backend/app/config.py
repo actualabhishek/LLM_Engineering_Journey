@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     openrouter_api_key: str = ""
-    llm_model: str = "openai/gpt-oss-120b"
+    llm_model: str = "google/gemini-3.8-flash"
     admin_password: str = ""
     secret_key: str = ""
     database_url: str = "sqlite:////data/app.db"
