@@ -17,8 +17,22 @@ _ONES = [
 ]
 
 # Numeral run, optionally ₹-prefixed and comma-grouped, not glued to a letter
-# (so alphanumeric booking references like "SVH2K9F" are left untouched).
+# (so alphanumeric booking references like "SVH2K9F" are left for _CODE_RE below).
 _NUMBER_RE = re.compile(r"(?<![A-Za-zऀ-ॿ])(₹\s?)?(\d[\d,]*)(?![A-Za-zऀ-ॿ])")
+
+# A guest reads a booking reference or loyalty member number back character by
+# character, not as a word or a number - Indic Parler-TTS mangles a raw mixed
+# alphanumeric string like "3F525P" if it's left as-is. Matches a token made
+# only of digits/uppercase letters that contains at least one of each
+# (excludes plain years/amounts, which have no letters, and plain English
+# acronyms, which have no digits).
+_LETTER_NAMES = {
+    "A": "ए", "B": "बी", "C": "सी", "D": "डी", "E": "ई", "F": "एफ", "G": "जी",
+    "H": "एच", "I": "आई", "J": "जे", "K": "के", "L": "एल", "M": "एम", "N": "एन",
+    "O": "ओ", "P": "पी", "Q": "क्यू", "R": "आर", "S": "एस", "T": "टी", "U": "यू",
+    "V": "वी", "W": "डब्ल्यू", "X": "एक्स", "Y": "वाई", "Z": "जेड",
+}
+_CODE_RE = re.compile(r"\b(?=[A-Z0-9]*[0-9])(?=[A-Z0-9]*[A-Z])[A-Z0-9]{4,10}\b")
 
 # LLMs commonly emit "smart"/typographic punctuation the TTS model wasn't
 # trained on much - normalize to plain ASCII. Written as \uXXXX escapes since
@@ -56,11 +70,16 @@ def _number_to_words(n: int) -> str:
     return " ".join(parts)
 
 
+def _spell_code(code: str) -> str:
+    return " ".join(_ONES[int(c)] if c.isdigit() else _LETTER_NAMES[c] for c in code)
+
+
 def to_hindi_speech_text(text: str) -> str:
-    def replace(match: re.Match) -> str:
+    def replace_number(match: re.Match) -> str:
         is_rupee = match.group(1) is not None
         words = _number_to_words(int(match.group(2).replace(",", "")))
         return f"{words} रुपये" if is_rupee else words
 
     text = text.translate(_PUNCTUATION_MAP)
-    return _NUMBER_RE.sub(replace, text)
+    text = _CODE_RE.sub(lambda m: _spell_code(m.group(0)), text)
+    return _NUMBER_RE.sub(replace_number, text)

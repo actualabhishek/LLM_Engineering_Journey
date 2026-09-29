@@ -714,3 +714,26 @@ Verified before switching:
 - An 8-run stress test of the same cancel-booking propose->confirm cycle that previously corrupted 2/6 times on gpt-oss-120b: **0/8 runs corrupted** on gemini-3.8-flash.
 
 Changes: `backend/app/config.py` (`llm_model` default), `.env`/`.env.example`, `docs/PLAN.md`'s stack table. Also reverted `agent/loop.py` to a plain single-call loop - the `_looks_garbled()` detector and retry logic were a workaround for gpt-oss-120b's specific corruption signature and are unneeded complexity now that the root cause is gone (CLAUDE.md rule 2: no unnecessary defensive programming). Kept `extra_body={"reasoning": {"exclude": True}}` since Gemini 3.8 Flash's reasoning is mandatory-but-hideable and excluding it from the response is still the right call for a voice app. Re-ran `cd backend && uv run pytest -q`: `70 passed`.
+
+## Post-ship fix: Hindi mispronunciation of booking references
+
+Reported: Hindi reading of a booking reference (`3F525P`) was wrong. `backend/app/voice/normalize.py`'s `_NUMBER_RE` deliberately skips any digit run glued to a letter (so it doesn't mangle only the digits inside a code like `SVH2K9F`), but that meant an alphanumeric code was sent to Indic Parler-TTS completely untouched - `test_alphanumeric_code_untouched` even asserted this as the expected (buggy) behavior. A human reads a code like this character by character ("three, F, five, two, five, P"), not as a glued Latin string, which is exactly the kind of input this Hindi-trained TTS model mangles.
+
+**Proof it was broken:**
+```
+$ cd backend && uv run python -c "from app.voice.normalize import to_hindi_speech_text; print(to_hindi_speech_text('आपका रेफरेंस 3F525P है।'))"
+आपका रेफरेंस 3F525P है।
+```
+(the code passes through completely unchanged into text handed to a Hindi TTS model)
+
+**Fix**: added `_CODE_RE` - matches a token made only of digits/uppercase letters that contains at least one of each (so it never touches a plain number like a year, or a plain English acronym with no digits) - and `_spell_code()`, which renders each digit via the existing Hindi number words and each letter via a new `_LETTER_NAMES` map of Devanagari letter names (e.g. `F` -> `एफ`, `P` -> `पी`). Runs before the existing number-to-words pass so it only ever sees genuine alphanumeric codes. Replaced the test that asserted the old behavior (`test_alphanumeric_code_untouched`) with one asserting the correct spelled-out reading, plus a punctuation-boundary regression test.
+
+**Proof it's fixed:**
+```
+$ cd backend && uv run python -c "from app.voice.normalize import to_hindi_speech_text; print(to_hindi_speech_text('आपका रेफरेंस 3F525P है।'))"
+आपका रेफरेंस तीन एफ पांच दो पांच पी है।
+
+$ cd backend && uv run pytest -q
+.......................................................................  [100%]
+71 passed in 11.94s
+```

@@ -17,8 +17,15 @@ def test_year():
     assert to_hindi_speech_text("15 अक्टूबर 2026 को") == "पंद्रह अक्टूबर दो हज़ार छब्बीस को"
 
 
-def test_alphanumeric_code_untouched():
-    assert to_hindi_speech_text("बुकिंग SVH2K9F कन्फर्म है।") == "बुकिंग SVH2K9F कन्फर्म है।"
+def test_alphanumeric_code_spelled_out_character_by_character():
+    assert (
+        to_hindi_speech_text("बुकिंग SVH2K9F कन्फर्म है।")
+        == "बुकिंग एस वी एच दो के नौ एफ कन्फर्म है।"
+    )
+
+
+def test_code_word_boundary_does_not_swallow_surrounding_punctuation():
+    assert to_hindi_speech_text("रेफरेंस: 3F525P.") == "रेफरेंस: तीन एफ पांच दो पांच पी."
 
 
 def test_zero():
