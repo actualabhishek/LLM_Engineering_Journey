@@ -631,3 +631,40 @@ Phase 6 is closed.
 ## All 6 phases complete
 
 Per `docs/PLAN.md`'s "Done means": a guest can complete every feature (booking, loyalty, check-in, recommendations) by voice, in English and in Hindi (Phases 4–5); the app runs from one `docker run` on a PC without a GPU, with the worker on Modal (Phases 1–2, and the real build/run above); all tests pass (70/70 backend, 3/3 Playwright specs); and this file has real, commands-and-output proof for every phase (1 through 6).
+
+## Post-ship fix: silent "Listening…" when no microphone is available
+
+While demoing the running container in a browser, clicking Start showed "Listening…" even though the console had already logged `Error starting micVad NotFoundError: Requested device not found` — `@ricky0123/vad-web`'s `MicVAD.new()` swallows a failed `getUserMedia` call internally (only `console.error`s it) rather than rejecting, so `frontend/app/page.tsx`'s `handleStart` had no way to know the mic never actually attached and optimistically set `status` to `"listening"` anyway.
+
+Fixed by pre-flighting the microphone in `handleStart` with our own `navigator.mediaDevices.getUserMedia({audio: true})` call before creating the VAD instance, mapping the common `DOMException` names to a clear on-screen message (`NotFoundError`/`OverconstrainedError` → "No microphone found...", `NotAllowedError`/`SecurityError` → "Microphone access was blocked...", anything else → a generic retry message) via the existing `error` state, and returning early so `started` stays `false` and the Start button is still there to retry.
+
+Verified with the real rebuilt container: reproduced the exact bug in a real browser tab with no microphone available (Playwright's fake-mic flags always provide a synthetic device, so this path was never hit by the Phase 5 E2E tests), then confirmed the fix — Start now shows "No microphone found. Please connect one and try again." immediately, instead of a misleading "Listening…" that never progresses. `npx tsc --noEmit` and `npm run lint` both clean; rebuilt (`docker build`) and re-verified `/health` after.
+
+## Post-ship fixes: Hindi volume too quiet, and inconsistent grammatical gender
+
+Two real issues reported after demoing the running app: Hindi replies were noticeably quieter than English ones, and the assistant sometimes used masculine self-reference in Hindi ("करूँगा") despite speaking in a female voice (Divya, on Indic Parler-TTS).
+
+**Volume.** Neither TTS path normalized output amplitude at all. Measured directly against the real deployed worker before any fix: raw Hindi peak ~0.16, RMS ~0.015 — extremely quiet. Fixed in `gpu_worker/modal_app.py`'s `/speak` handler with a `normalize_volume()` helper applied to both English (Kokoro) and Hindi (Parler-TTS) output: scale to a target RMS (perceived loudness, not just peak) of 0.15, capping the gain so peak never exceeds 0.98 (avoids hard-clipping distortion on Hindi's peakier waveform rather than just slamming a fixed gain and clipping). Also strengthened `DIVYA_DESCRIPTION` (Parler-TTS's style-conditioning text) to explicitly ask for a "clear, confident and moderately loud voice" instead of "monotone," addressing the issue at the generation source too, not just post-hoc gain.
+
+Hit and fixed a real bug while verifying: Kokoro returns `torch.Tensor` chunks (Parler's path already converted `.cpu().numpy()`, Kokoro's never did), so calling the new numpy-based `normalize_volume()` directly on a raw tensor crashed english replies with `TypeError: mean() received an invalid combination of arguments` (`/speak` 500s) — proved via `modal app logs`, fixed by converting each Kokoro chunk with `np.asarray(c.cpu())` before concatenating, same as Parler's own conversion.
+
+Verified against the redeployed worker directly (`/speak`, no code in between):
+```
+Before: Hindi peak=0.1588 RMS=0.0153 | English peak=0.3421 RMS=0.0474
+After:  Hindi peak=0.9800 RMS=0.0863-0.1372 | English peak=0.9800 RMS=0.1372
+```
+(Hindi's RMS varies call to call since Parler-TTS generation isn't deterministic — each clip still gets normalized as loud as it can go without clipping.) Also had to force-stop a stale warm Modal container mid-verification (`modal container stop <id> --yes`) since a fast redeploy (no image rebuild) doesn't always recycle an already-warm container immediately, and it was serving pre-fix code for a couple of requests after "successful" deploys — a real gotcha worth remembering for future worker changes, not a bug in this fix itself.
+
+**Gender consistency.** Hindi verb conjugation is gendered ("करूँगा" masculine vs "करूँगी" feminine), and `backend/app/agent/prompt.py` never told the LLM which to use, so it had no signal to stay consistent with the female TTS voice. Added one instruction: "Your voice is female. When replying in Hindi, always use feminine grammatical forms for yourself... never mix in masculine self-reference," with concrete examples. Verified with a direct `run_turn` probe (two Hindi turns): replies now consistently use feminine forms — "मदद करूँगी", "सहायता कर सकती हूँ".
+
+Re-ran `cd backend && uv run pytest -q` after both fixes: `70 passed`, no regressions.
+
+## Post-ship fix: Hindi speech sometimes transcribed as unrelated English
+
+Reported after real use: speaking Hindi, the guest's own caption sometimes showed actual English words unrelated to what was said, and the assistant naturally replied in English to that English text — this was not an LLM/prompt bug (verified separately: `run_turn` reliably replies in Hindi given either clean Devanagari or even romanized Hindi text like "mujhe ek kamra chahiye"), it was Whisper mis-transcribing at the STT layer.
+
+**Root cause**: `faster-whisper`'s language auto-detection scores across all ~99 languages it knows, and short or accented clips can score some unrelated language above the correct one (a documented failure mode — e.g. faster-whisper issue #1164 describes a plain English clip scoring highest for Latin). This app only ever needs English or Hindi, so trusting the raw top-1 pick across the full language set was the bug.
+
+**Fix** (`gpu_worker/modal_app.py`'s `/transcribe`): `WhisperModel.transcribe()`'s returned `TranscriptionInfo.all_language_probs` already contains every language's score from that same pass, at no extra cost. Re-score by filtering to just `{"en", "hi"}` and taking the max; if that differs from the unrestricted top-1 pick, re-transcribe once more with `language=` forced to the corrected choice. Common case (top-1 already en/hi) costs nothing extra; the misdetection case costs one more transcription pass, only when needed.
+
+Verified no regression on both known-good fixtures directly against the redeployed worker: `hi_sample.wav` -> `{"text": "नमस्ति मैं आपकी क्या मदद कर सकता हूँ", "language": "hi", "language_probability": 0.624}`, `en_sample.wav` -> `{"text": "Good evening, how can I help you today?", "language": "en", "language_probability": 1.0}` — both already correctly identified pre-fix, so this confirms the fix doesn't disturb the working path. Re-ran `gpu_worker/test_worker.py` (real worker, both fixtures) and `cd backend && uv run pytest -q`: all passing, no regressions. Could not reproduce the exact reported misfire directly (it depends on the reporter's own microphone/accent characteristics, not something a synthetic TTS-generated fixture reproduces), so this is the correct, documented mitigation for the failure mode rather than a reproduced-and-fixed bug — worth the reporter re-testing with real speech to confirm.

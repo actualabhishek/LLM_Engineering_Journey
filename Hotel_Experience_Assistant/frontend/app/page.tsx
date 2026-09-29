@@ -26,6 +26,22 @@ export default function Home() {
   }, []);
 
   async function handleStart() {
+    setError(null);
+
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setError("No microphone found. Please connect one and try again.");
+      } else if (name === "NotAllowedError" || name === "SecurityError") {
+        setError("Microphone access was blocked. Please allow it for this site and try again.");
+      } else {
+        setError("Could not access the microphone. Please try again.");
+      }
+      return;
+    }
+
     setStarted(true);
     const playback = createPlaybackQueue((playing) =>
       setStatus(playing ? "speaking" : "listening")

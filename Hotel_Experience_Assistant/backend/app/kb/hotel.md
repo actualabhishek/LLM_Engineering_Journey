@@ -1,6 +1,6 @@
-# Sundar Vista Hotel
+# Velvet Vista Hotel
 
-Sundar Vista is a 4-star hotel in Udaipur, Rajasthan, overlooking the lake. It has 55 rooms across five categories, a spa, a rooftop pool, a gym, two restaurants and banquet space for weddings and conferences.
+Velvet Vista is a 4-star hotel in Udaipur, Rajasthan, overlooking the lake. It has 55 rooms across five categories, a spa, a rooftop pool, a gym, two restaurants and banquet space for weddings and conferences.
 
 ## Room types
 

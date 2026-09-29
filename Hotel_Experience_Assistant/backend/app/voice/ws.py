@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GREETING = "Namaste! Welcome to Sundar Vista Hotel. How can I help you today?"
+GREETING = "Namaste! Welcome to Velvet Vista Hotel. How can I help you today?"
 
 MUTATING_TOOLS = {
     "create_booking",

@@ -43,13 +43,14 @@ image = image.run_function(
 app = modal.App("hotel-voice-worker", image=image)
 
 DIVYA_DESCRIPTION = (
-    "Divya's voice is monotone yet slightly fast in delivery, "
-    "with a very close recording that almost has no background noise."
+    "Divya, a female speaker, delivers her words in a clear, confident and moderately loud voice, "
+    "at a natural pace, with a very close recording that almost has no background noise."
 )
 
 
 MAX_SPEAK_CHARS = 500  # one spoken sentence; replies are split sentence by sentence
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # ~60s of audio, generous for one utterance
+SUPPORTED_LANGUAGES = {"en", "hi"}
 
 
 class SpeakRequest(BaseModel):
@@ -105,21 +106,50 @@ class SpeechWorker:
             data = await audio.read()
             if len(data) > MAX_UPLOAD_BYTES:
                 raise HTTPException(status_code=413, detail="Audio too large")
+
             segments, info = self.whisper.transcribe(io.BytesIO(data), beam_size=5)
             text = "".join(seg.text for seg in segments).strip()
+            language = info.language
+
+            # This app only supports English/Hindi, but Whisper auto-detects across
+            # ~99 languages - short or accented clips can misfire onto an unrelated
+            # top pick. Re-score against just the two languages we actually support
+            # and re-transcribe if that changes the answer.
+            if info.all_language_probs:
+                supported = [(lang, prob) for lang, prob in info.all_language_probs if lang in SUPPORTED_LANGUAGES]
+                if supported:
+                    best_language, _ = max(supported, key=lambda item: item[1])
+                    if best_language != language:
+                        segments, info = self.whisper.transcribe(
+                            io.BytesIO(data), beam_size=5, language=best_language
+                        )
+                        text = "".join(seg.text for seg in segments).strip()
+                        language = best_language
+
             return {
                 "text": text,
-                "language": info.language,
+                "language": language,
                 "language_probability": info.language_probability,
             }
+
+        def normalize_volume(audio: np.ndarray, target_rms: float = 0.15, peak_ceiling: float = 0.98) -> np.ndarray:
+            rms = np.sqrt(np.mean(audio**2))
+            if rms == 0:
+                return audio
+            gain = target_rms / rms
+            peak_after_gain = np.abs(audio).max() * gain
+            if peak_after_gain > peak_ceiling:
+                gain *= peak_ceiling / peak_after_gain
+            return audio * gain
 
         @web_app.post("/speak")
         def speak(body: SpeakRequest, _: None = Depends(check_token)):
             buffer = io.BytesIO()
             if body.language == "en":
                 chunks = [audio for _, _, audio in self.kokoro(body.text, voice="af_heart")]
+                chunks = [np.asarray(c.cpu()) if hasattr(c, "cpu") else np.asarray(c) for c in chunks]
                 audio = chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
-                sf.write(buffer, audio, 24000, format="WAV")
+                sf.write(buffer, normalize_volume(audio), 24000, format="WAV")
             else:
                 desc = self.parler_description_tokenizer(DIVYA_DESCRIPTION, return_tensors="pt").to(self.device)
                 prompt = self.parler_tokenizer(body.text, return_tensors="pt").to(self.device)
@@ -130,7 +160,7 @@ class SpeechWorker:
                     prompt_attention_mask=prompt.attention_mask,
                 )
                 audio = generation.cpu().numpy().squeeze()
-                sf.write(buffer, audio, self.parler.config.sampling_rate, format="WAV")
+                sf.write(buffer, normalize_volume(audio), self.parler.config.sampling_rate, format="WAV")
 
             return Response(content=buffer.getvalue(), media_type="audio/wav")
 
