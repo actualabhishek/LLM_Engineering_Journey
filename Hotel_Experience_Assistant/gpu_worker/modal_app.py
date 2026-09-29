@@ -99,6 +99,20 @@ class SpeechWorker:
             if not secrets.compare_digest(creds.credentials, os.environ["GPU_WORKER_TOKEN"]):
                 raise HTTPException(status_code=401, detail="Invalid bearer token")
 
+        def _transcribe_once(data: bytes, **kwargs):
+            segments, info = self.whisper.transcribe(io.BytesIO(data), beam_size=5, **kwargs)
+            segments = list(segments)
+            text = "".join(seg.text for seg in segments).strip()
+            duration = sum(seg.end - seg.start for seg in segments)
+            avg_logprob = (
+                sum(seg.avg_logprob * (seg.end - seg.start) for seg in segments) / duration
+                if duration
+                else float("-inf")
+            )
+            return text, info, avg_logprob
+
+        SHORT_RESULT_WORD_LIMIT = 3
+
         @web_app.post("/transcribe")
         async def transcribe(audio: UploadFile = File(...), _: None = Depends(check_token)):
             if audio.size is not None and audio.size > MAX_UPLOAD_BYTES:
@@ -107,8 +121,7 @@ class SpeechWorker:
             if len(data) > MAX_UPLOAD_BYTES:
                 raise HTTPException(status_code=413, detail="Audio too large")
 
-            segments, info = self.whisper.transcribe(io.BytesIO(data), beam_size=5)
-            text = "".join(seg.text for seg in segments).strip()
+            text, info, avg_logprob = _transcribe_once(data)
             language = info.language
 
             # This app only supports English/Hindi, but Whisper auto-detects across
@@ -120,11 +133,20 @@ class SpeechWorker:
                 if supported:
                     best_language, _ = max(supported, key=lambda item: item[1])
                     if best_language != language:
-                        segments, info = self.whisper.transcribe(
-                            io.BytesIO(data), beam_size=5, language=best_language
-                        )
-                        text = "".join(seg.text for seg in segments).strip()
+                        text, info, avg_logprob = _transcribe_once(data, language=best_language)
                         language = best_language
+
+            # Even within {en, hi}, the language-ID head is unreliable on a short
+            # result (a single common word like "हाँ" or "अच्छा" is often misheard
+            # as English) - the decoder's own confidence on a forced re-transcribe
+            # in the other supported language is a better signal than the LID head
+            # for this specific case, so cross-check and keep whichever the
+            # decoder actually believes more.
+            if len(text.split()) <= SHORT_RESULT_WORD_LIMIT:
+                other_language = "hi" if language == "en" else "en"
+                alt_text, alt_info, alt_avg_logprob = _transcribe_once(data, language=other_language)
+                if alt_avg_logprob > avg_logprob:
+                    text, info, language = alt_text, alt_info, other_language
 
             return {
                 "text": text,
@@ -153,13 +175,24 @@ class SpeechWorker:
             else:
                 desc = self.parler_description_tokenizer(DIVYA_DESCRIPTION, return_tensors="pt").to(self.device)
                 prompt = self.parler_tokenizer(body.text, return_tensors="pt").to(self.device)
-                generation = self.parler.generate(
-                    input_ids=desc.input_ids,
-                    attention_mask=desc.attention_mask,
-                    prompt_input_ids=prompt.input_ids,
-                    prompt_attention_mask=prompt.attention_mask,
-                )
-                audio = generation.cpu().numpy().squeeze()
+                # Parler-TTS's generation is stochastic and, for short text, can
+                # occasionally collapse to a near-empty clip (observed: a single
+                # sample, which crashes soundfile.write) - retry a few times since
+                # a fresh sample reliably produces a real clip.
+                audio = None
+                for _ in range(3):
+                    generation = self.parler.generate(
+                        input_ids=desc.input_ids,
+                        attention_mask=desc.attention_mask,
+                        prompt_input_ids=prompt.input_ids,
+                        prompt_attention_mask=prompt.attention_mask,
+                    )
+                    candidate = generation.cpu().numpy().squeeze()
+                    if candidate.ndim >= 1 and candidate.size >= 100:
+                        audio = candidate
+                        break
+                if audio is None:
+                    audio = np.atleast_1d(candidate)
                 sf.write(buffer, normalize_volume(audio), self.parler.config.sampling_rate, format="WAV")
 
             return Response(content=buffer.getvalue(), media_type="audio/wav")

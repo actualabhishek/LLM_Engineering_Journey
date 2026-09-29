@@ -737,3 +737,43 @@ $ cd backend && uv run pytest -q
 .......................................................................  [100%]
 71 passed in 11.94s
 ```
+
+## Post-ship fixes: short common Hindi words ("जी हाँ", "धन्यवाद") not understood
+
+Reported: the assistant still doesn't understand small/common Hindi words like "ji haan" and "dhanyavaad". Investigated by round-tripping each phrase through the real deployed worker's `/speak` (synthesize) then `/transcribe` (recognize) - the same technique used for every other real-audio proof in this file, since it's the only way to get real speech audio for a phrase without a live microphone. Found two separate, real bugs:
+
+**Bug 1 - short Hindi words misheard as English.** Whisper's language-ID head is unreliable on a short isolated word, and unlike the earlier "misfires onto an unrelated 3rd language" bug (already fixed), this time it was genuinely comparing English vs. Hindi and picking English:
+```
+said='जी हाँ'    heard='Thank you.'  lang=en   (completely wrong)
+said='हाँ'       heard='Huh.'        lang=en   (wrong)
+said='नहीं'      heard='No.'         lang=en   (right meaning, wrong language/script)
+said='शुक्रिया'  heard='Thank you.'  lang=en   (wrong)
+said='अच्छा'     heard='A chao'      lang=en   (garbled and wrong)
+```
+Since the reply-language detection (`_reply_language` in `ws.py`) keys off script in the guest's own transcript, a guest saying a short Hindi confirmation word got misheard as English and the assistant would reply in English - the exact "I said Hindi but it replies in English" pattern from an earlier post-ship fix, this time triggered by short utterances specifically.
+
+**Fix** (`gpu_worker/modal_app.py`'s `/transcribe`): the language-ID head's own probability is unreliable here, but the decoder's actual confidence (`avg_logprob`) on a forced re-transcribe is a better signal for a short result. Added `_transcribe_once()` (returns text, info, and duration-weighted average log-probability) and, whenever the result is very short (<= 3 words), a forced re-transcribe in the *other* supported language, keeping whichever the decoder is more confident in.
+
+**Proof it's fixed** (same phrases, same worker, after redeploy):
+```
+said='जी हाँ'    heard='जी हम'   lang=hi   (correct language; minor phonetic slip)
+said='धन्यवाद'   heard='धनिवाद'  lang=hi   (correct, minor garble, unchanged)
+said='नहीं'      heard='नहीं'    lang=hi   MATCH (was wrongly 'No.'/en)
+said='अच्छा'     heard='अच्छा'   lang=hi   MATCH (was garbled 'A chao'/en)
+said='ओके'       heard='ओकी'     lang=hi   (correct language; was 'Okay.'/en)
+```
+Not a full fix: two of the nine tested phrases ("हाँ" alone, "शुक्रिया" alone) still resolved to English even after the cross-check - genuine acoustic ambiguity on an isolated one-word clip with no surrounding sentence context, which is a harder problem than a single per-utterance heuristic can fully solve. Flagging this as a known remaining limitation, not silently claiming it's 100% fixed. A further improvement (not implemented - would need passing the conversation's established language as a hint from `ws.py` through to `/transcribe`, since a real conversation gives context an isolated test clip doesn't have) is available if this is still not good enough in practice.
+
+**Bug 2 - `/speak` intermittently crashed on short Hindi text.** Found while generating the test phrases above: `/speak` for `"धन्यवाद"` returned a real `500` about 1 in 6 calls.
+```
+$ modal app logs hotel-voice-worker
+...
+File "/root/modal_app.py", line 163, in speak
+    sf.write(buffer, normalize_volume(audio), self.parler.config.sampling_rate, format="WAV")
+IndexError: tuple index out of range
+```
+**Root cause**: Parler-TTS's generation is stochastic, and for short text it can occasionally collapse to a near-empty (in the observed case, a single-sample, 0-dimensional after `.squeeze()`) clip, which `soundfile.write` can't handle. Confirmed intermittent, not deterministic, by calling `/speak` on the exact same short text 5 times in a row before the fix (all 5 succeeded that time) - a real race with the model's own sampling, not a fixed input-dependent bug.
+
+**Fix**: retry generation up to 3 times whenever the result is degenerate (`ndim == 0` or fewer than 100 samples) before giving up, since a fresh sample reliably produces a real clip.
+
+**Proof it's fixed**: 21 calls (7 short Hindi phrases x 3 each) against the redeployed worker, `0/21 crashed`. Re-ran `cd backend && uv run pytest -q` (unaffected, this is worker-only code): `71 passed`. Re-ran `gpu_worker/test_worker.py` against the redeployed worker to confirm the two supported-flow fixtures are unaffected: both still pass.
