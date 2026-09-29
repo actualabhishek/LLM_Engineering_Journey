@@ -20,6 +20,20 @@ _ONES = [
 # (so alphanumeric booking references like "SVH2K9F" are left untouched).
 _NUMBER_RE = re.compile(r"(?<![A-Za-zऀ-ॿ])(₹\s?)?(\d[\d,]*)(?![A-Za-zऀ-ॿ])")
 
+# LLMs commonly emit "smart"/typographic punctuation the TTS model wasn't
+# trained on much - normalize to plain ASCII. Written as \uXXXX escapes since
+# these look-alike characters (e.g. non-breaking space vs regular space) are
+# otherwise indistinguishable from ordinary punctuation in an editor.
+_PUNCTUATION_MAP = str.maketrans({
+    "‐": "-",  # hyphen
+    "‑": "-",  # non-breaking hyphen
+    "‒": "-",  # figure dash
+    "–": "-",  # en dash
+    "—": "-",  # em dash
+    " ": " ",  # non-breaking space
+    " ": " ",  # narrow no-break space
+})
+
 
 def _number_to_words(n: int) -> str:
     if n == 0:
@@ -48,4 +62,5 @@ def to_hindi_speech_text(text: str) -> str:
         words = _number_to_words(int(match.group(2).replace(",", "")))
         return f"{words} रुपये" if is_rupee else words
 
+    text = text.translate(_PUNCTUATION_MAP)
     return _NUMBER_RE.sub(replace, text)
