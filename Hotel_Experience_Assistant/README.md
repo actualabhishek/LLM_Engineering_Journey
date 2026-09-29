@@ -2,6 +2,25 @@
 
 A voice concierge for hotels: guests talk (English or Hindi) to book rooms, manage loyalty points, check in, and get recommendations, and the assistant talks back. The app runs as one Docker container on a CPU-only machine; speech (STT/TTS) runs on a serverless GPU worker on Modal.
 
+## What we built
+
+A guest opens a web page, taps **Start**, and just talks — no typing, no forms. The assistant listens, replies out loud in the same language the guest used, and shows live captions plus a summary card whenever it actually does something (books a room, checks a guest in, redeems loyalty points). Before it changes anything real, it repeats back what it's about to do and only goes ahead once the guest says yes. There's also a small password-protected admin page to see bookings, check-ins, and past conversations.
+
+## How it's built
+
+Two moving parts:
+- **The app** — a Python (FastAPI) backend and a Next.js frontend, packaged into one Docker container that runs on any regular CPU machine. It holds the hotel's data (rooms, bookings, loyalty accounts) in SQLite, runs the conversation logic, and serves the web page.
+- **The GPU worker** — a separate serverless function on [Modal](https://modal.com) that only does speech: turning the guest's voice into text, and turning the assistant's reply back into speech. It spins up on demand and shuts down when idle, so there's no GPU running (or costing money) most of the time.
+
+The two talk to each other over the network — the app never needs its own GPU.
+
+## Models and AI used
+
+- **The brain (LLM):** an open-weight model (`openai/gpt-oss-120b`) called through [OpenRouter](https://openrouter.ai). It decides what to say and which tool to use (check availability, make a booking, look up loyalty points, etc.) — the actual booking rules and database live in plain code, not in the model.
+- **Speech-to-text:** `faster-whisper`, so the assistant can understand what the guest said, in English or Hindi.
+- **Text-to-speech:** Kokoro for English, Indic Parler-TTS for Hindi — so the reply is actually spoken back.
+- **Voice detection:** Silero VAD, running right in the guest's browser, to notice when they start and stop talking (and to let them interrupt the assistant mid-sentence).
+
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
@@ -55,5 +74,7 @@ cd frontend && npx playwright test                  # E2E (fake microphone)
 ```
 
 ---
+
+Still learning, still building.
 
 Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
