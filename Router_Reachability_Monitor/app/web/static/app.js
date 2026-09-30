@@ -130,6 +130,12 @@
     connBanner.classList.toggle("hidden", !show);
   }
 
+  function updateChart(data) {
+    const targetIds = data.targets.map((t) => t.id);
+    if (!chart) initChart(targetIds);
+    refreshChart(targetIds);
+  }
+
   function startPolling() {
     if (pollTimer) return;
     showConnBanner(true);
@@ -138,7 +144,7 @@
         const resp = await fetch("/api/status");
         const data = await resp.json();
         renderStatus(data);
-        if (!chart) initChart(data.targets.map((t) => t.id));
+        updateChart(data);
       } catch (e) { /* keep polling */ }
     }, 5000);
   }
@@ -156,10 +162,7 @@
     ws.onmessage = (ev) => {
       const data = JSON.parse(ev.data);
       renderStatus(data);
-      if (!chart) {
-        initChart(data.targets.map((t) => t.id));
-        refreshChart(data.targets.map((t) => t.id));
-      }
+      updateChart(data);
     };
     ws.onclose = () => { startPolling(); setTimeout(connectWS, 5000); };
     ws.onerror = () => ws.close();

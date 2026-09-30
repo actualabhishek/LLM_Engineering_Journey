@@ -8,9 +8,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime
 
 import httpx
 
+from app.alerts.format import IST
 from app.alerts.summary import build_summary
 from app.alerts.telegram import send_text
 from app.runtime import RuntimeState
@@ -75,9 +77,11 @@ async def _handle_callback(state: RuntimeState, client: httpx.AsyncClient, token
     text = "Unknown action"
     if data.startswith("ack:"):
         target_id = data[len("ack:") :]
-        by = callback.get("from", {}).get("username") or "telegram"
+        by = callback.get("from", {}).get("username") or callback.get("from", {}).get("first_name") or "someone"
         acked = state.alert_manager.ack(target_id, by=by)
         text = f"Acked {target_id}" if acked else f"No active incident for {target_id}"
+        if acked:
+            await _mark_message_acked(client, token, callback.get("message"), by)
 
     try:
         await client.post(
@@ -86,6 +90,27 @@ async def _handle_callback(state: RuntimeState, client: httpx.AsyncClient, token
         )
     except httpx.HTTPError:
         logger.exception("answerCallbackQuery failed")
+
+
+async def _mark_message_acked(client: httpx.AsyncClient, token: str, message: dict | None, by: str) -> None:
+    """Edits the DOWN alert message itself so everyone in the chat/channel sees it was
+    acknowledged, not just the person who tapped it (answerCallbackQuery is a private toast)."""
+    if not message or "text" not in message:
+        return
+    when = datetime.now(IST).strftime("%d-%b %H:%M IST")
+    new_text = f"{message['text']}\n\n✅ Acknowledged by {by} at {when}"
+    try:
+        await client.post(
+            f"{API_BASE}/bot{token}/editMessageText",
+            json={
+                "chat_id": message["chat"]["id"],
+                "message_id": message["message_id"],
+                "text": new_text,
+                "reply_markup": {"inline_keyboard": []},
+            },
+        )
+    except httpx.HTTPError:
+        logger.exception("editMessageText (ack) failed")
 
 
 async def _handle_update(state: RuntimeState, client: httpx.AsyncClient, token: str, update: dict) -> None:

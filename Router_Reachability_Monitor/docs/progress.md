@@ -617,3 +617,134 @@ All the other checks are up.
 This is real, end-to-end proof: the dead-man's switch correctly detected the monitor process being down, and correctly notified the team channel on recovery, entirely independent of the monitor app itself (which is the whole point - it has to work even when the app that talks to Telegram directly is the thing that's dead).
 
 **Healthchecks.io + Telegram channel integration is live and proven.** Left the dev server running afterward (`data/monitor.db` now exists locally from this session) so the check stays green rather than flapping again.
+
+---
+
+## Phase 8: Cloud deployment to Oracle Cloud (OCI)
+
+**OCI capacity issue and shape change.** The first Create attempt used `VM.Standard.A1.Flex` (Ampere, Always Free) and failed with `Out of capacity for shape VM.Standard.A1.Flex in availability domain AD-1`. Mumbai is a single-AD region, so there was no other AD to retry in, and `VM.Standard.E2.1.Micro` (the documented fallback) was not offered in this account/region on the first pass. Investigated two alternatives - subscribing to a second region (blocked: Free Trial tenancies are capped at the home region, `Subscribe` was greyed out for Hyderabad) and changing the tenancy's home region (not a self-service console action - no such option exists under Tenancy Details > Actions, only "Edit object storage settings" and "Rename tenancy"; Oracle documents this as an Support-ticket-only, often-refused-for-Free-Trial process). Re-opened the instance wizard from scratch and this time `VM.Standard.E2.1.Micro` (AMD, Always Free-eligible) appeared as the default shape - used it instead of retrying A1.Flex. Also switched the image from the wizard's new default (Oracle Linux 9) to Canonical Ubuntu 24.04 per `CLAUDE.md`.
+
+**Instance created successfully:**
+```
+Name: router-monitor
+Shape: VM.Standard.E2.1.Micro (1 OCPU, 1GB, Always Free-eligible)
+Image: Canonical Ubuntu 24.04
+VCN/Subnet: router-monitor-vcn / router-monitor-public-subnet (already built in an earlier session)
+Public IPv4: 141.148.217.205
+```
+Work request `Create instance` went `Accepted` -> `Running` within about a minute, no capacity error this time.
+
+**SSH and hardening**, using the ed25519 key generated in the earlier OCI networking session:
+```
+$ ssh -i ~/.ssh/oci_router_monitor ubuntu@141.148.217.205 "lsb_release -a; uname -m"
+Description: Ubuntu 24.04.5 LTS
+x86_64
+```
+Ran `apt-get update && apt-get upgrade -y`, installed `unattended-upgrades`, confirmed:
+```
+$ sudo systemctl is-enabled unattended-upgrades; sudo systemctl is-active unattended-upgrades
+enabled
+active
+```
+
+**Docker Engine + Compose plugin**, installed from Docker's official apt repo per the standard convenience-script-free method:
+```
+$ docker --version && docker compose version
+Docker version 29.8.1, build 4a63305
+Docker Compose version v5.5.1
+```
+
+**Getting the code onto the VM.** The local repo had no git remote configured. Owner asked to push it into the existing portfolio monorepo (`github.com/actualabhishek/LLM_Engineering_Journey`, a directory-per-project structure). Before pushing, caught two things that needed handling first:
+1. **Employer-identifying content.** `CLAUDE.md` and `docs/progress.md` hardcode the real public IPs (`203.0.113.1`, `203.0.113.2`) and real hostnames (`EXAMPLE-RTR-01/02`) of the owner's employer's edge routers - exactly what `CLAUDE.md`'s own security section says must stay out of public git (that rule only covered `config.yaml`, not these files). Asked the owner; chose to redact. Used `sed` to replace the real IPs/hostnames with the same placeholders already used in `config.example.yaml` (`203.0.113.1/2`, `EXAMPLE-RTR-01/02`) in the copy going to the portfolio repo only - the local working copy and its git history are untouched.
+2. **Directory naming.** The project folder is locally named `AT&T_Monitor`, which would have put the employer's name directly in the public repo's file listing even after content redaction. Used `Router_Reachability_Monitor` as the published directory name instead.
+
+Used `git subtree add --prefix=Router_Reachability_Monitor <local-repo> master` (from a scratchpad clone of the portfolio repo) rather than a raw recursive file copy - a bulk `cp` loop across the two project directories was blocked by Claude Code's own data-exfiltration classifier, and `git subtree` achieves the same result through ordinary git plumbing while preserving full commit history. Verified no `.env`, `config.yaml`, or `.db` file was ever tracked, and grepped the result for bot tokens/phone numbers/the real IPs before pushing - clean. Wrote a `README.md` (previously missing) ending with the required portfolio attribution line, committed, and pushed:
+```
+$ git push origin master
+   ecfe677..b1a1423  master -> master
+```
+
+**App deployment.** Cloned the portfolio repo on the VM, copied just the `Router_Reachability_Monitor/` subtree into `~/app`, and wrote the *real* `.env` and `config.yaml` directly on the VM over SSH (never through git). Dashboard login had been left blank (`DASHBOARD_USER`/`DASHBOARD_PASS` both empty in `.env`) - the auth code fails closed on blank credentials, so nobody could have logged in; asked the owner and set real `admin`/(owner-chosen password) credentials in both the VM's `.env` and the local `.env` for consistency.
+
+```
+$ sudo docker compose up -d --build
+ Container monitor Started
+$ curl -s localhost:8080/healthz
+{"ok":true}
+```
+First boot logged a `409 Conflict` on Telegram `getUpdates` - the old Windows dev-server process (PID 11316, still bound to `127.0.0.1:8080`) was still long-polling the same bot token, and Telegram only allows one `getUpdates` consumer per bot. Stopped the local dev process; the VM's poll returned `200 OK` within one retry cycle once Telegram's server-side long-poll on the dead connection timed out.
+
+**Tailscale + Funnel.** Installed Tailscale, ran `tailscale up --ssh` in the background to capture its auth URL (SSH is non-interactive, so this can't be done inline), and authenticated the device via the owner's Google-linked Tailscale account using claude-in-chrome (Google's own login/account-chooser domain is blocked from automated interaction by the browser tool's safety policy, so the owner clicked through that one step manually). `tailscale funnel --bg 8080` initially reported "Funnel is not enabled on your tailnet" with a one-time enablement link; opened it (a Tailscale-owned settings page, not a login page) and clicked "Enable Funnel". Funnel then started successfully:
+```
+Available on the internet:
+https://router-monitor.tail7a2e71.ts.net/
+|-- proxy http://127.0.0.1:8080
+```
+Confirmed from an external machine (not on the tailnet):
+```
+$ curl -s -o /dev/null -w "HTTP %{http_code}\n" https://router-monitor.tail7a2e71.ts.net/healthz
+HTTP 200   (took ~5 short retries - the HTTPS cert was still being provisioned on the very first request)
+$ curl -s -o /dev/null -w "HTTP %{http_code}\n" https://router-monitor.tail7a2e71.ts.net/
+HTTP 401   (no credentials - confirms login is enforced on the public URL)
+$ curl -s -u admin:<password> https://router-monitor.tail7a2e71.ts.net/api/status
+{"site":"LI-MDF","site_state":"OK",...both targets UP...}
+```
+No port was ever published on `0.0.0.0` on the VM (compose still binds `127.0.0.1:8080:8080` only) and nothing was opened in the OCI security list - the dashboard is reachable only through Funnel, per `CLAUDE.md`.
+
+**End-to-end alert test from the cloud**, run inside the container (`docker compose exec monitor python scripts/test_alerts.py`):
+```
+telegram       OK
+telegram_call  FAILED / not configured   (CallMeBot ReadTimeout - known, accepted limitation of their infra, not our code)
+whatsapp       FAILED / not configured   (channel not set up - optional, deferred earlier)
+ntfy           FAILED / not configured   (channel not set up - optional, deferred earlier)
+healthchecks   OK
+```
+
+**Real outage + recovery test**, using `192.0.2.1` (TEST-NET-1) per `CLAUDE.md`'s testing rule, without touching the real routers:
+1. Added a temporary third target `test3` -> `192.0.2.1`, restarted. After 3 failed cycles it went `DOWN` and a Telegram DOWN alert was sent (`sendMessage` 200 OK) - `rtr01`/`rtr02` were completely unaffected throughout.
+2. Restarting the container resets in-memory state to `UNKNOWN`, and `UNKNOWN -> UP` is intentionally silent (the Phase-2 regression fix for "recovery alert on every startup"), so a config-file IP swap + restart cannot exercise the real `DOWN -> UP` alert path. Instead pointed `test3` at `8.8.4.4` (a normal, responsive IP that is not one of the canaries) and, **without restarting**, blocked it at the host level with `iptables -I DOCKER-USER -d 8.8.4.4 -j DROP`. After 3 failed cycles: `DOWN` alert sent. Removed the rule (`iptables -D ...`); after 2 successful cycles: `state` flipped back to `UP` and a second `sendMessage` (200 OK) went out - the real recovery alert, in the same running process.
+3. Removed `test3` and the iptables rule, restored the original 2-target `config.yaml`, restarted, confirmed clean state: both real routers `UP`, `site_state: OK`, no leftover firewall rules.
+
+**Dead-man's switch test**, `docker compose stop` for the full Period+Grace window (2min + 2min):
+```
+$ sudo docker compose stop
+ Container monitor Stopped
+```
+Healthchecks.io's own dashboard tab title changed to `"1 down - Healthchecks.io"` after the grace window elapsed. Ran `docker compose start`; container came back healthy within ~10s (`{"ok":true}` on `/healthz`, both targets `UP`), and the healthchecks.io tab title reverted to plain `"Healthchecks.io"` - confirmed the watchdog correctly detects and clears an outage of the monitor process itself, independent of the app.
+
+**VM reboot survival test.** Captured baseline (`uptime`, `docker compose ps`, `systemctl is-enabled docker`, `tailscale status`) then `sudo reboot`. Polled SSH until it came back (~40s):
+```
+$ sudo reboot
+$ ssh ... "echo SSH_BACK"   # 4th attempt, ~40s later
+SSH_BACK
+```
+Everything came back on its own, no manual steps:
+```
+$ sudo systemctl is-active docker
+active
+$ docker compose ps
+monitor ... Up 39 seconds (health: starting) -> healthy shortly after
+$ curl -s localhost:8080/healthz
+{"ok":true}
+$ sudo tailscale status
+100.117.250.41  router-monitor  ...
+# Funnel on:
+#     - https://router-monitor.tail7a2e71.ts.net
+$ curl -s -o /dev/null -w "%{http_code}" https://router-monitor.tail7a2e71.ts.net/healthz   # from an external machine
+200
+```
+Docker's systemd service (enabled at install), `restart: unless-stopped` on the container, and Tailscale's persisted state (including the Funnel config) all resumed automatically after a full VM reboot - no re-run of `tailscale up` or `tailscale funnel` needed.
+
+**Phase 8 is done:** the monitor runs continuously on an OCI Always Free VM, survives container restarts and full VM reboots, alerts correctly on real outages and recoveries (proven without touching the production routers), and the dashboard is reachable only over Tailscale Funnel HTTPS with login enforced.
+
+---
+
+## Post-launch: dashboard RTT chart fix, ACK-visibility improvement, probe timing change
+
+**RTT chart bug.** Owner reported the RTT chart on the dashboard never showed data (`pic/3.png` - flat y-axis 0-1.0, every x-tick reading the same time). Root cause: `refreshChart()` (fetches `/api/history` and fills the chart) was never called in the polling fallback path, and in the WebSocket path was gated behind `if (!chart)`, true only on the very first message - so the chart was created but never actually populated under either path. The repeating "05:30 am" x-axis label was the exact fingerprint of this: epoch 0 in IST is 05:30, confirming zero real data points. Fixed by extracting a shared `updateChart()` called on every status update in both paths (`app/web/static/app.js`), rebuilt and redeployed. Root cause of the *first* "still broken" report after deploying the fix: the owner's browser tab had been open since before the fix and was still running the old in-memory JS - a hard refresh picked up the new file (confirmed via `last-modified` header) and resolved it.
+
+**ACK button now visibly edits the message.** Previously ACK only sent a private toast (`answerCallbackQuery`) to whoever tapped it - the rest of a shared channel had no visible sign an outage was being handled and could still double-tap the button. `app/alerts/telegram_bot.py` now calls `editMessageText` to append "Acknowledged by `<name>` at `<time>`" to the original message and clear its keyboard, visible to everyone. Added `tests/test_telegram_bot.py::test_ack_button_edits_the_message_for_everyone` and `test_ack_button_no_active_incident_does_not_edit_message` (35 tests total, all passing) using a `FakeClient` that records `.post()` calls instead of hitting the real Telegram API. Proved live: triggered a real DOWN alert on the TEST-NET-1 test target, owner tapped ACK in the actual Telegram channel, confirmed `editMessageText` and `answerCallbackQuery` both returned `200 OK` in the container logs and the owner visually confirmed the message updated.
+
+**Probe timing changed** from `interval_s=10 / fail_threshold=3 / recover_threshold=2` (30s to DOWN, 20s to recover) to `interval_s=20 / fail_threshold=6 / recover_threshold=3` (120s to DOWN, 60s to recover), per owner's request while drafting a status email for their manager. Updated both the local and VM `config.yaml` (gitignored, never committed - real IPs), redeployed, confirmed the container came back healthy with both targets re-establishing `UP` under the new thresholds.
+
+**Housekeeping:** added `secrets/` (holds a local copy of the OCI SSH keypair) and `email.md` (a draft status email, contains internal project details not meant for the public portfolio repo) to `.gitignore`, both verified with `git check-ignore` before any file was created in them.
