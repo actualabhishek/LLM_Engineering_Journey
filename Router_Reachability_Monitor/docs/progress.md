@@ -748,3 +748,18 @@ Docker's systemd service (enabled at install), `restart: unless-stopped` on the 
 **Probe timing changed** from `interval_s=10 / fail_threshold=3 / recover_threshold=2` (30s to DOWN, 20s to recover) to `interval_s=20 / fail_threshold=6 / recover_threshold=3` (120s to DOWN, 60s to recover), per owner's request while drafting a status email for their manager. Updated both the local and VM `config.yaml` (gitignored, never committed - real IPs), redeployed, confirmed the container came back healthy with both targets re-establishing `UP` under the new thresholds.
 
 **Housekeeping:** added `secrets/` (holds a local copy of the OCI SSH keypair) and `email.md` (a draft status email, contains internal project details not meant for the public portfolio repo) to `.gitignore`, both verified with `git check-ignore` before any file was created in them.
+
+---
+
+## Full re-test after the probe timing change (owner-requested)
+
+Owner asked for a full re-run of all four verification tests against the new `interval_s=20 / fail_threshold=6 / recover_threshold=3` config, since the earlier tests were only proven against the old 10s/3/2 timing.
+
+1. **Alert channels** (`scripts/test_alerts.py` in the container): `telegram OK`, `telegram_call OK` (CallMeBot succeeded this run), `healthchecks OK`, `whatsapp`/`ntfy` correctly `FAILED / not configured`.
+2. **Outage + recovery**, same TEST-NET-1 then iptables-block method as before, retimed for the new thresholds (~130s wait for DOWN, ~70s for recovery): `test3` went DOWN at 13:34:11 IST (`sendMessage` 200 OK) and recovered at 13:35:47 IST (`sendMessage` 200 OK) - both real alerts, real routers untouched. One side note logged for the owner mid-test: pressing ACK on the *first* phase's now-stale DOWN message correctly returned "No active incident for test3", because switching `test3`'s IP between phases required a container recreate, and incidents are in-memory only - not a bug, expected behavior once explained.
+3. **VM reboot**: `sudo reboot` -> SSH back in 5 attempts (~50s) -> Docker `active`, container `healthy`, Tailscale reconnected (same IP `100.117.250.41`), Funnel resumed automatically, public HTTPS `/healthz` returned `200` - no manual steps.
+4. **Dead-man's switch**: `docker compose stop` -> healthchecks.io tab title flipped to `"1 down - Healthchecks.io"` after the ~4 minute Period+Grace window -> `docker compose start` -> healthy within ~10s, tab title reverted to plain `"Healthchecks.io"`.
+
+Cleaned up after: removed the `test3` target and iptables rule, restored the 2-target production `config.yaml`, confirmed both real routers `UP` and `site_state: OK`.
+
+**All four tests pass under the new probe timing.** No regressions from the interval/threshold change.

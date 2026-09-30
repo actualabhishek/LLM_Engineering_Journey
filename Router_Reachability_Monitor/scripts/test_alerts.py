@@ -27,7 +27,10 @@ async def main() -> None:
         target_id="test",
         hostname="TEST-ALERT",
         ip="0.0.0.0",
-        new_state="DOWN",
+        # Deliberately not "DOWN": this alert is only ever sent directly to each notifier to check
+        # channel connectivity, never through AlertManager.on_down() - it never registers a real
+        # incident, so an ACK button on it would always fail with "No active incident".
+        new_state="TEST",
         ts=time.time(),
         severity="WARNING",
         rtt_avg=1.0,
