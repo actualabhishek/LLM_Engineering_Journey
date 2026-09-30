@@ -2,6 +2,29 @@
 
 External reachability monitor for two internet edge routers (site LI-MDF). Pings both routers on an interval, runs an UP/DOWN state machine with debounce, sends multi-channel alerts (Telegram text, Telegram voice call, WhatsApp, ntfy), and serves a live NOC-style dashboard (green = UP, red = DOWN).
 
+## How it works
+
+```mermaid
+flowchart LR
+    Browser["Your browser / phone<br/>(dashboard)"]
+    VM["OCI cloud VM<br/>Monitor app (Docker)"]
+    R1["Router 1"]
+    R2["Router 2"]
+    HC["healthchecks.io"]
+    TG["Telegram"]
+    Phone["Your phone<br/>(notification)"]
+
+    Browser -- "views dashboard via<br/>Tailscale tunnel (HTTPS)" --> VM
+    VM -- "ping every 20s" --> R1
+    VM -- "ping every 20s" --> R2
+    VM -- "heartbeat every 60s<br/>('I'm still alive')" --> HC
+    VM -- "alert on UP/DOWN change" --> TG
+    HC -- "if silent 4 min,<br/>sends its own alert" --> TG
+    TG -- "push notification" --> Phone
+```
+
+The VM is the only thing doing work on a schedule — everything else reacts when it hears from the VM. It runs 24/7 in Oracle's free tier, pings both routers directly over the public internet, and has no open port of its own: the dashboard is reachable only through a private Tailscale tunnel. healthchecks.io is a separate, unrelated free service that only watches whether the VM itself is still checking in — if it goes silent for 4 minutes, healthchecks.io raises its own alert independently of the app.
+
 ## Features
 
 - ICMP + TCP probing with a canary check (1.1.1.1 / 8.8.8.8) so a local internet outage isn't mistaken for a router outage.
