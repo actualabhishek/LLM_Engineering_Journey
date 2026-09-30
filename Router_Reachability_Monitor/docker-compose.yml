@@ -1,0 +1,21 @@
+services:
+  monitor:
+    build: .
+    container_name: monitor
+    restart: unless-stopped
+    cap_add: [NET_RAW]
+    env_file: .env
+    environment:
+      - TZ=Asia/Kolkata
+    volumes:
+      - monitor_data:/data
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  monitor_data:

@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+aiosqlite
+icmplib
+httpx
+pydantic-settings
+PyYAML
+Jinja2
+tzdata
+pytest
+pytest-asyncio
