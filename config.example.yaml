@@ -1,0 +1,35 @@
+site: "LI-MDF"
+timezone: "Asia/Kolkata"
+
+probe:
+  interval_s: 10
+  icmp_count: 3
+  icmp_timeout_s: 1
+  fail_threshold: 3
+  recover_threshold: 2
+  tcp_fallback: true
+
+flap:
+  max_changes: 4
+  window_s: 600
+
+canaries: ["1.1.1.1", "8.8.8.8"]
+
+targets:
+  - id: rtr01
+    hostname: EXAMPLE-RTR-01
+    ip: 203.0.113.1
+    tcp_port: 22
+  - id: rtr02
+    hostname: EXAMPLE-RTR-02
+    ip: 203.0.113.2
+    tcp_port: 22
+
+alerts:
+  escalate_call_after_s: 120
+  repeat_every_s: 600
+  channels: [telegram, telegram_call, whatsapp, ntfy]
+
+dashboard:
+  host: 0.0.0.0
+  port: 8080

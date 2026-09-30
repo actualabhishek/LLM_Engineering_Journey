@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ site }} Router Monitor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="conn-banner" class="conn-banner hidden">Connection lost - retrying (polling every 5s)</div>
+
+  <header class="header">
+    <div class="header-left">
+      <h1>{{ site }} Reachability Monitor</h1>
+      <div id="site-banner" class="site-banner unknown">Loading...</div>
+    </div>
+    <div class="header-right">
+      <div id="monitor-health" class="monitor-health">canary: <span id="canary-state">-</span></div>
+      <div id="clock" class="clock">-</div>
+    </div>
+  </header>
+
+  <main>
+    <section id="tiles" class="tiles"></section>
+
+    <section class="chart-section">
+      <h2>RTT (last 1h)</h2>
+      <canvas id="rtt-chart" height="80"></canvas>
+    </section>
+
+    <section class="events-section">
+      <h2>Event log</h2>
+      <table id="events-table">
+        <thead>
+          <tr><th>Time (IST)</th><th>Target</th><th>Change</th><th>Reason</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="controls">
+      <button id="test-alert-btn">Send test alert</button>
+      <span id="test-alert-result"></span>
+    </section>
+  </main>
+
+  <script src="/static/chart.umd.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
