@@ -21,7 +21,7 @@ class FakeNotifier(Notifier):
 
 
 def make_alert(state="DOWN", target_id="rtr01"):
-    return Alert(target_id=target_id, hostname="LI-MDF-IRTR-1001-01", ip="32.142.239.74", new_state=state, ts=0)
+    return Alert(target_id=target_id, hostname="EXAMPLE-RTR-01", ip="203.0.113.1", new_state=state, ts=0)
 
 
 def make_manager(escalate_call_after_s=120, repeat_every_s=600, fail_channel=None):

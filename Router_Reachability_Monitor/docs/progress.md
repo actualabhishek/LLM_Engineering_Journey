@@ -46,7 +46,7 @@ Test command:
 Real output:
 ```
 LI-MDF
-[Target(id='rtr01', hostname='LI-MDF-IRTR-1001-01', ip='32.142.239.74', tcp_port=22), Target(id='rtr02', hostname='LI-MDF-IRTR-1001-02', ip='32.132.149.134', tcp_port=22)]
+[Target(id='rtr01', hostname='EXAMPLE-RTR-01', ip='203.0.113.1', tcp_port=22), Target(id='rtr02', hostname='EXAMPLE-RTR-02', ip='203.0.113.2', tcp_port=22)]
 dashboard_user= admin
 ```
 
@@ -209,11 +209,11 @@ Covers everything CLAUDE.md's Testing section asks for: escalation timing (no ca
 
 Bug found and fixed: `zoneinfo.ZoneInfo("Asia/Kolkata")` raised `ZoneInfoNotFoundError` on this Windows dev machine — Windows Python ships no IANA tz database. Added the `tzdata` package to `requirements.txt` (the Docker image already gets this via apt `tzdata`, but local Windows dev needs the pip package too). Re-ran after installing:
 ```
-[WARNING] LI-MDF-IRTR-1001-01 (32.142.239.74) is DOWN
+[WARNING] EXAMPLE-RTR-01 (203.0.113.1) is DOWN
 15-Nov 03:43 IST
 rtt=n/a loss=100%
 ---
-[WARNING] LI-MDF-IRTR-1001-01 (32.142.239.74) is UP
+[WARNING] EXAMPLE-RTR-01 (203.0.113.1) is UP
 15-Nov 04:43 IST
 was down for 1h 1m
 ```

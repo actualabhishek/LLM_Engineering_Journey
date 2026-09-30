@@ -6,8 +6,8 @@ Continuously monitor external (internet) reachability of two edge routers, raise
 
 | Hostname | Public IP | Role |
 |---|---|---|
-| LI-MDF-IRTR-1001-01 | 32.142.239.74 | Internet router 1 (MDF) |
-| LI-MDF-IRTR-1001-02 | 32.132.149.134 | Internet router 2 (MDF) |
+| EXAMPLE-RTR-01 | 203.0.113.1 | Internet router 1 (MDF) |
+| EXAMPLE-RTR-02 | 203.0.113.2 | Internet router 2 (MDF) |
 
 Both routers sit in the same MDF, so **both down at once = site isolated** and must be treated as a higher severity than a single router down.
 
@@ -204,12 +204,12 @@ flap:
 canaries: ["1.1.1.1", "8.8.8.8"]
 targets:
   - id: rtr01
-    hostname: LI-MDF-IRTR-1001-01
-    ip: 32.142.239.74
+    hostname: EXAMPLE-RTR-01
+    ip: 203.0.113.1
     tcp_port: 22
   - id: rtr02
-    hostname: LI-MDF-IRTR-1001-02
-    ip: 32.132.149.134
+    hostname: EXAMPLE-RTR-02
+    ip: 203.0.113.2
     tcp_port: 22
 alerts:
   escalate_call_after_s: 120
@@ -346,8 +346,8 @@ Bonus: the monitor now probes from a cloud data centre instead of home broadband
  |                   +---------------------------------------------+  |
  |                   | Docker container "monitor"                  |  |
  |                   |  FastAPI dashboard + WebSocket (port 8080)  |  |
- |                   |  asyncio probe loop  --ICMP/TCP-->  Internet ----> 32.142.239.74
- |                   |  alert manager                              |  |       32.132.149.134
+ |                   |  asyncio probe loop  --ICMP/TCP-->  Internet ----> 203.0.113.1
+ |                   |  alert manager                              |  |       203.0.113.2
  |                   |  SQLite on volume /data                     |  |
  |                   +---------------------------------------------+  |
  +--------------------------------------------------------------------+
@@ -394,7 +394,7 @@ volumes:
 3. **Network:** in the VCN Security List allow ingress TCP/22 **from your IP only**. No 80/443 needed (Funnel is outbound). Egress: allow all (default), so ICMP and HTTPS alerts work.
 4. **SSH in and harden:** `sudo apt update && sudo apt upgrade -y`, enable unattended-upgrades, keep Oracle's default iptables rules (they already block everything but SSH).
 5. **Install Docker:** Docker Engine + compose plugin from Docker's official apt repo; add user to `docker` group.
-6. **Sanity check from the VM:** `ping -c 5 32.142.239.74` and `ping -c 5 32.132.149.134`. Both IPs answer ICMP from any internet source, so no whitelisting is needed. This step only confirms the VM's egress works.
+6. **Sanity check from the VM:** `ping -c 5 203.0.113.1` and `ping -c 5 203.0.113.2`. Both IPs answer ICMP from any internet source, so no whitelisting is needed. This step only confirms the VM's egress works.
 7. **Deploy app:** `git clone` the repo (private repo, or copy with `scp`), create `.env` and `config.yaml` on the VM (never commit them), then `docker compose up -d --build`.
 8. **Verify locally on VM:** `curl -s localhost:8080/healthz`, `docker compose logs -f` shows probe results every 10s.
 9. **Publish dashboard:** install Tailscale on the VM, `sudo tailscale up`, then `sudo tailscale funnel --bg 8080`. Open the `https://...ts.net` URL from any browser, log in.

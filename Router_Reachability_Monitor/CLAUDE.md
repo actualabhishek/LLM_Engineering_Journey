@@ -6,8 +6,8 @@ Guidance for Claude Code when working in this repository. Read `PLAN.md` first f
 
 External reachability monitor for two internet edge routers (site LI-MDF):
 
-- `rtr01` LI-MDF-IRTR-1001-01, 32.142.239.74
-- `rtr02` LI-MDF-IRTR-1001-02, 32.132.149.134
+- `rtr01` EXAMPLE-RTR-01, 203.0.113.1
+- `rtr02` EXAMPLE-RTR-02, 203.0.113.2
 
 It pings on an interval, runs an UP/DOWN state machine with debounce, sends alerts (Telegram text, Telegram voice call via CallMeBot, WhatsApp via CallMeBot, ntfy), and serves a live dashboard (green = UP, red = DOWN). Everything must stay on free services.
 
