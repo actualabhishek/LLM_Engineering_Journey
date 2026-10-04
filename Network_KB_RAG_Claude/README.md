@@ -1,8 +1,8 @@
 # RAG Pipeline — LangGraph + Claude
 
-16 years of networking, now speaking Python. This is a hands-on RAG (Retrieval-Augmented Generation) pipeline I built to actually understand how these systems work under the hood — not just call an API and hope for the best. It's built with LangGraph, ChromaDB, and Anthropic's Claude models, and it ingests PDF, DOCX, and plain text knowledge bases so you can ask questions and get grounded, cited answers back.
+This is a hands-on RAG (Retrieval-Augmented Generation) pipeline, built with Claude Code, to actually understand how these systems work under the hood — not just call an API and hope for the best. It's built with LangGraph, ChromaDB, and Anthropic's Claude models, and it ingests PDF, DOCX, and plain text knowledge bases so you can ask questions and get grounded, cited answers back.
 
-I'm using my own TCS network SOPs as the test knowledge base — felt right to point my first real AI project at the kind of documents I've lived in for 16 years.
+I'm using my own TCS network SOPs as the test knowledge base — felt right to point my first real AI project at the kind of documents I live in as a network engineer.
 
 ## Architecture
 
@@ -155,6 +155,6 @@ All settings live in `.env` (see `.env.example`). Key parameters:
 
 ## About this project
 
-I'm a Senior Network Engineer at TCS, 16+ years in — F5 BIG-IP, Cisco ISE, Nexus, Meraki, Cisco Voice, CEH — currently making a deliberate, hands-on transition into AI/ML engineering. This repo is part of that journey: real projects, real setbacks, built and documented as I go. More of the journey is at [github.com/actualabhishek/LLM_Engineering_Journey](https://github.com/actualabhishek/LLM_Engineering_Journey) and on LinkedIn.
+I'm a Senior Network Engineer at TCS (17 years in networking) building GenAI/LLM systems, most of them with Claude Code and the fundamentals independently. This repo is part of that journey: real projects, real setbacks, built and documented as I go. More at [github.com/actualabhishek/LLM_Engineering_Journey](https://github.com/actualabhishek/LLM_Engineering_Journey) and on LinkedIn.
 
-Still learning, still building.
+Still learning. Still building.

@@ -51,4 +51,4 @@ Open either notebook in Jupyter and run the cells top to bottom. The final cells
 
 Part of my [LLM Engineering journey](../) — hands-on exploration of multi-agent orchestration and how to get LLM agents from different providers, or with different jobs, to actually check each other's work instead of just taking turns talking.
 
-Still learning, still building.
+Still learning. Still building.

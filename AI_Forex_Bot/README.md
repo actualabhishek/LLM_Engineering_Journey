@@ -1,6 +1,6 @@
 # ForexAI Trader
 
-**An autonomous forex trading system for MT5, built from the ground up — and from 16 years of watching networks fail in every way networks can fail.**
+**An autonomous forex trading system for MT5, built from the ground up, with a network engineer's instinct for how systems fail.**
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## Overview
 
-I spent 16 years keeping enterprise networks up — F5 load balancers, Cisco ISE, Nexus fabrics, the kind of infrastructure where a bad decision at 2 AM costs someone real money. This project is where that instinct meets my AI/ML transition: a trading system built the way I'd want a trading system built, if I were the one whose capital was on the line. Which I am.
+I am a Senior Network Engineer, and this project is where my instinct for how systems fail meets GenAI: a trading system built the way I would want one built if my own capital were on the line. Which it is. Built with Claude Code.
 
 ForexAI Trader is hands-on, still-evolving, and grounded in real backtests rather than backtest marketing. Here's what it actually does:
 
@@ -456,7 +456,7 @@ pytest tests/ -v --cov=. --cov-report=term-missing
 
 **Never commit your `.env` file.** The `.gitignore` excludes it by default.
 
-Sixteen years of enterprise networking left me with a low tolerance for "it'll probably be fine" security. Kill switch, rate limiting, IP allowlists — these aren't decoration.
+A network engineer's low tolerance for "it'll probably be fine" shows up in the security design. Kill switch, rate limiting, IP allowlists: these are not decoration.
 
 ---
 
@@ -587,8 +587,8 @@ MIT — use freely, trade responsibly.
 
 ---
 
-16 years of networks, now speaking Python. Still learning, still building.
-
 ---
 
-Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

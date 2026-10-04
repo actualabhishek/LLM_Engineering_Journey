@@ -2,7 +2,7 @@
 
 An end-to-end, AI-powered resume tailoring pipeline. Upload a resume and a target job description, and ResumeRocket AI rewrites the resume to fit the role, explains exactly what changed, and drafts a matching cover letter — all through a simple web interface.
 
-Part of the [`llm-engineering-journey`](../) portfolio, documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Part of the [`llm-engineering-journey`](../) portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
 
 ## What it does
 
@@ -62,3 +62,5 @@ A few real bugs surfaced and fixed while building this, worth keeping as a refer
 - Support `.docx` resume uploads in addition to PDF.
 - Let users pick between OpenAI and Anthropic models per run (an Anthropic-compatible client is already wired up).
 - Multi-page PDF styling (fonts, spacing, optional templates).
+
+Still learning. Still building.

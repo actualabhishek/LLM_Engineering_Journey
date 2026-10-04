@@ -1,6 +1,6 @@
 # Abhishek Suman — Portfolio + Digital Twin
 
-Personal site for Abhishek Suman, Senior Network Engineer (16+ years, F5, Cisco ISE, Nexus, Meraki, Palo Alto, Azure networking) now building his way into AI/ML engineering. Two jobs in one site: read as a credible engineering portfolio, and let visitors chat with an AI "Digital Twin" grounded in his actual resume.
+Personal site for Abhishek Suman: GenAI/LLM engineering built with Claude Code, with 17 years of networking behind it as a Senior Network Engineer at TCS. Two jobs in one site: read as a credible engineering portfolio, and let visitors chat with an AI "Digital Twin" grounded in his actual resume.
 
 ## Stack
 
@@ -21,4 +21,8 @@ npm run dev
 - Site copy is sourced only from the resume/profile PDFs (git-ignored) — no invented achievements.
 - `.env` holds `OPENROUTER_API_KEY`; see `.env.example`.
 
-Onward — one commit at a time.
+---
+
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

@@ -109,4 +109,6 @@ In the real project these live in a nested structure (`models/schemas.py`, `disp
 
 ---
 
-Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

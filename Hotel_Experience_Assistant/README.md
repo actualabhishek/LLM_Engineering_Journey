@@ -88,6 +88,6 @@ cd frontend && npx playwright test                  # E2E (fake microphone)
 
 ---
 
-Still learning, still building.
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
 
-Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Still learning. Still building.

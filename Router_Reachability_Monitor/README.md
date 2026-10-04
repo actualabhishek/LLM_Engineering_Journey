@@ -1,5 +1,7 @@
 # Router Reachability Monitor
 
+Built with Claude Code. Monitoring automation, no LLM.
+
 External reachability monitor for two internet edge routers (site LI-MDF). Pings both routers on an interval, runs an UP/DOWN state machine with debounce, sends multi-channel alerts (Telegram text, Telegram voice call, WhatsApp, ntfy), and serves a live NOC-style dashboard (green = UP, red = DOWN).
 
 ## How it works
@@ -56,4 +58,6 @@ See `PLAN.md` for the full design and `CLAUDE.md` for the build/testing discipli
 
 ---
 
-Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

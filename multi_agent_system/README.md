@@ -1,6 +1,6 @@
 # Multi-Agent Research System
 
-I've spent 16+ years living inside enterprise networks — F5 load balancers, Cisco ISE, Nexus fabrics, Palo Alto firewalls. Lately I've been teaching myself to build with LLMs instead of routing packets between them, and this project is one of the first real things I shipped along the way: a small multi-agent pipeline that takes a topic, researches it on the live web, analyzes what it found, and writes up a polished report — hands-off, end to end.
+I am a Senior Network Engineer who has been teaching myself to build with LLMs, and this is one of the first things I built from scratch, without Claude Code: a small multi-agent pipeline that takes a topic, researches it on the live web, analyzes what it found, and writes up a polished report, hands-off, end to end.
 
 It's built with OpenAI's `openai-agents-sdk`, and it's deliberately simple: three agents, each with one job, talking to each other through typed contracts instead of loose strings.
 
@@ -92,4 +92,6 @@ This was built incrementally, one deliberate step at a time — environment, too
 
 ---
 
-Part of the `llm-engineering-journey` portfolio — documenting a hands-on transition from 16+ years of enterprise network engineering into AI/ML engineering.
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

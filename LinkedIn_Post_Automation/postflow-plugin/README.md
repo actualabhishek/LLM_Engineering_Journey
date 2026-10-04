@@ -108,3 +108,9 @@ fragility against the next plugin update.
   queue of topics waiting behind it.
 - `state/` — created at runtime (state.json, generated images). Not
   committed.
+
+---
+
+Part of the `llm-engineering-journey` portfolio: GenAI/LLM projects built with Claude Code, plus fundamentals built independently. Background: 17 years in networking.
+
+Still learning. Still building.

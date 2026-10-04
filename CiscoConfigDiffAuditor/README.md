@@ -1,6 +1,6 @@
 # Cisco Config Diff Viewer
 
-16 years of staring at Cisco configs taught me one thing: a raw
+Years of staring at Cisco configs taught me one thing: a raw
 `diff` on two IOS config files is nearly useless. Reorder a couple of
 interfaces and suddenly your "diff" is a wall of red and green that
 tells you nothing about what actually changed. This tool is my fix
@@ -70,10 +70,7 @@ should be needed — both operate on the vendor-neutral `ConfigBlock` /
 
 ---
 
-This is part of my own transition from network engineering into
-AI/ML engineering — I'm learning Python and building real, useful
-tools along the way instead of just reading about it. More of the
-journey lives at
+This is part of my work building GenAI/LLM and automation tools. Built independently in Python and Gradio, without Claude Code and with no LLM in it. More at
 [LLM_Engineering_Journey](https://github.com/actualabhishek/LLM_Engineering_Journey).
 
-Still learning, still building.
+Still learning. Still building.

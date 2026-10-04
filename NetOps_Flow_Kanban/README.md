@@ -86,3 +86,5 @@ The end-to-end suite starts its own dev server, or set `E2E_BASE_URL=http://loca
 - `docs/` - the build plan and what was done after it
 
 `Claude.md` holds the requirements and technical decisions; `docs/PLAN.md` records how it was built and the issues fixed since.
+
+Still learning. Still building.
