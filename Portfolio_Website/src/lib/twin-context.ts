@@ -1,4 +1,6 @@
-export const TWIN_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+export const TWIN_MODEL = "openai/gpt-oss-120b";
+// Pin reply generation to Cerebras via OpenRouter provider routing; no fallback so latency stays predictable.
+export const TWIN_PROVIDER = { order: ["Cerebras"], allow_fallbacks: false };
 export const SAFETY_MODEL = "nvidia/nemotron-3.5-content-safety:free";
 
 export const TWIN_CONTEXT = `

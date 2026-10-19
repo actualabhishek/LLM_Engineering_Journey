@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getGitHubContext, getGitHubProjectInventory } from "@/lib/github-context";
-import { SAFETY_MODEL, TWIN_CONTEXT, TWIN_MODEL } from "@/lib/twin-context";
+import { SAFETY_MODEL, TWIN_CONTEXT, TWIN_MODEL, TWIN_PROVIDER } from "@/lib/twin-context";
 
 export const runtime = "nodejs";
 
@@ -92,6 +92,7 @@ export async function POST(request: Request) {
     const repositoryContext = await getGitHubContext(message);
     const result = await openRouterResponse({
       model: TWIN_MODEL,
+      provider: TWIN_PROVIDER,
       messages: [{ role: "system", content: [TWIN_CONTEXT, repositoryContext].filter(Boolean).join("\n\n") }, { role: "user", content: message }],
       temperature: 0.35,
       max_tokens: 900,
