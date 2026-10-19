@@ -1,108 +1,180 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTwin } from "./twin-provider";
 
 type Message = { role: "visitor" | "twin"; content: string };
 
-const starters = ["What kind of GenAI systems are you building?", "How does networking inform your AI work?", "Tell me about your RAG projects."];
+const MAX_LENGTH = 1200;
+const starters = [
+  "What kind of GenAI systems are you building?",
+  "How does networking inform your AI work?",
+  "Tell me about your RAG projects.",
+  "Which projects did you build without Claude Code?",
+];
+
+const FAILURE = "I couldn’t answer that just now. Please try again shortly.";
 
 export function DigitalTwin() {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "twin", content: "I’m Abhishek’s Digital Twin. Ask about my engineering background, GenAI work, or portfolio projects." },
-  ]);
+  const { setOpen, toggleDock, registerSubmit } = useTwin();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  function clearChat() {
-    if (busy) return;
-    setMessages([{ role: "twin", content: "I'm Abhishek's Digital Twin. Ask about my engineering background, GenAI work, or portfolio projects." }]);
-    setInput("");
-  }
-
-  async function submit(event?: FormEvent, prompted?: string) {
-    event?.preventDefault();
-    const message = (prompted ?? input).trim();
-    if (!message || busy) return;
-    setMessages((current) => [...current, { role: "visitor", content: message }, { role: "twin", content: "" }]);
-    setInput("");
+  const send = useCallback(async (raw: string) => {
+    const message = raw.trim();
+    if (!message || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
+    setInput("");
+    setMessages((current) => [...current, { role: "visitor", content: message }, { role: "twin", content: "" }]);
+
+    const setReply = (update: (previous: string) => string) =>
+      setMessages((current) => current.map((item, index) => (index === current.length - 1 ? { ...item, content: update(item.content) } : item)));
+
     try {
       const response = await fetch("/api/twin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
       });
-      if (response.ok && response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
-            try {
-              const payload = JSON.parse(line.slice(6)) as { choices?: { delta?: { content?: string } }[] };
-              const delta = payload.choices?.[0]?.delta?.content;
-              if (delta) {
-                setMessages((current) => current.map((item, index) => index === current.length - 1 ? { ...item, content: `${item.content}${delta}` } : item));
-              }
-            } catch {
-              // Ignore provider metadata chunks.
-            }
-          }
-        }
+
+      if (!response.ok || !response.body) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        setReply(() => data.error ?? FAILURE);
         return;
       }
-      const data = (await response.json()) as { reply?: string; error?: string };
-      setMessages((current) => [...current, { role: "twin", content: data.reply ?? data.error ?? "I couldn’t answer that just now. Please try again." }]);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+          try {
+            const payload = JSON.parse(line.slice(6)) as { choices?: { delta?: { content?: string } }[] };
+            const delta = payload.choices?.[0]?.delta?.content;
+            if (delta) setReply((previous) => previous + delta);
+          } catch {
+            // Provider metadata chunks are not JSON we care about.
+          }
+        }
+      }
+      setReply((previous) => previous || FAILURE);
     } catch {
-      setMessages((current) => [...current, { role: "twin", content: "I couldn’t connect just now. Please try again shortly." }]);
+      setReply(() => "I couldn’t connect just now. Check your connection and try again.");
     } finally {
+      busyRef.current = false;
       setBusy(false);
+    }
+  }, []);
+
+  // Let buttons elsewhere on the page send a question to this chat.
+  useEffect(() => {
+    registerSubmit((question) => void send(question));
+    return () => registerSubmit(null);
+  }, [registerSubmit, send]);
+
+  // Keep the newest message in view while it streams.
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) node.scrollTo({ top: node.scrollHeight });
+  }, [messages]);
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    void send(input);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void send(input);
     }
   }
 
+  function clearChat() {
+    if (busyRef.current) return;
+    setMessages([]);
+    setInput("");
+    inputRef.current?.focus();
+  }
+
+  const remaining = MAX_LENGTH - input.length;
+
   return (
-    <section id="twin" className="panel scroll-mt-8 p-5 sm:p-7">
-      <div className="mb-5 flex items-start justify-between gap-4 border-b border-white/10 pb-5">
+    <div className="twin">
+      <header className="twin-head">
         <div>
-          <p className="eyebrow">Live portfolio interface</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-stone-100">Ask the Digital Twin</h2>
+          <h2>Digital Twin</h2>
+          <p className="twin-status"><i aria-hidden="true" /> Grounded in my resume and repo</p>
         </div>
-        <div className="twin-actions"><span className="status"><i /> Online</span><button type="button" className="clear-button" onClick={clearChat} disabled={busy}>Clear chat</button></div>
-      </div>
+        <div className="twin-tools">
+          {messages.length > 0 && <button type="button" className="quiet" onClick={clearChat} disabled={busy}>Clear</button>}
+          <button type="button" className="quiet dock-only" onClick={toggleDock} aria-label="Collapse assistant">Hide</button>
+          <button type="button" className="quiet drawer-only" onClick={() => setOpen(false)} aria-label="Close assistant">Close</button>
+        </div>
+      </header>
 
-      <div className="space-y-3" aria-live="polite">
-        {messages.filter((message) => message.content).map((message, index) => (
-          <div key={`${message.role}-${index}`} className={message.role === "visitor" ? "chat visitor" : "chat twin"}>
-            <span className="chat-label">{message.role === "visitor" ? "You" : "AS"}</span>
-            {message.role === "twin" ? (
-              <div className="chat-markdown">
-                <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
-              </div>
-            ) : (
-              <p>{message.content}</p>
-            )}
+      <div className="twin-scroll" ref={scrollRef}>
+        {messages.length === 0 ? (
+          <div className="twin-empty">
+            <p>I’m an AI version of Abhishek. Ask about my career, skills, or any project in this portfolio and I’ll answer in my own voice.</p>
+            <ul className="starters" aria-label="Suggested questions">
+              {starters.map((starter) => (
+                <li key={starter}><button type="button" onClick={() => void send(starter)}>{starter}</button></li>
+              ))}
+            </ul>
           </div>
-        ))}
-        {busy && <div className="chat twin"><span className="chat-label">AS</span><p className="pulse">Thinking through the relevant context…</p></div>}
+        ) : (
+          <ol className="thread" aria-live="polite">
+            {messages.map((message, index) => {
+              const waiting = message.role === "twin" && !message.content && busy && index === messages.length - 1;
+              return (
+                <li key={index} className={`turn ${message.role}`}>
+                  <span className="turn-author">{message.role === "visitor" ? "You" : "Abhishek"}</span>
+                  {message.role === "visitor" ? (
+                    <p>{message.content}</p>
+                  ) : waiting ? (
+                    <p className="typing" role="status">Reading the relevant context</p>
+                  ) : (
+                    <div className="markdown"><Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown></div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        {starters.map((starter) => <button key={starter} onClick={() => submit(undefined, starter)} className="prompt" disabled={busy}>{starter}</button>)}
-      </div>
-      <form onSubmit={submit} className="mt-5 flex gap-2">
+      <form className="composer" onSubmit={onSubmit}>
         <label className="sr-only" htmlFor="twin-question">Your question</label>
-        <input id="twin-question" value={input} onChange={(event) => setInput(event.target.value)} maxLength={1200} placeholder="Ask a portfolio question…" className="field" />
-        <button type="submit" className="button" disabled={busy || !input.trim()}>{busy ? "Sending" : "Send"}</button>
+        <textarea
+          id="twin-question"
+          ref={inputRef}
+          rows={2}
+          value={input}
+          maxLength={MAX_LENGTH}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Ask about a project, a skill, or my career"
+        />
+        <div className="composer-bar">
+          <span className={remaining < 100 ? "hint warn" : "hint"}>{remaining < 100 ? `${remaining} characters left` : "Enter to send, Shift+Enter for a new line"}</span>
+          <button type="submit" className="send" disabled={busy || !input.trim()}>{busy ? "Answering" : "Send"}</button>
+        </div>
+        <p className="scope">Scoped to my professional work. Messages are safety checked and rate limited.</p>
       </form>
-      <p className="mt-3 text-xs leading-5 text-stone-500">Scoped to professional experience and project work. The service is rate limited and safety checked.</p>
-    </section>
+    </div>
   );
 }
