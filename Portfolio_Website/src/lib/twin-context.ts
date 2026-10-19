@@ -1,4 +1,4 @@
-export const TWIN_MODEL = "inclusionai/ling-3.0-flash-vl:free";
+export const TWIN_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 export const SAFETY_MODEL = "nvidia/nemotron-3.5-content-safety:free";
 
 export const TWIN_CONTEXT = `
