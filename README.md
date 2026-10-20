@@ -18,7 +18,7 @@
 
 ## 👋 About This Repo
 
-I'm Abhishek. I build GenAI and LLM systems in two ways, on purpose. Most of the apps in this repo were built with Claude Code, which is how I go from idea to something running quickly. The fundamentals work (QLoRA fine-tuning, a self-correcting LangGraph retrieval agent, multi-agent systems in AutoGen, CrewAI and the OpenAI Agents SDK) I built independently, without Claude Code, to understand what is underneath. I am a Senior Network Engineer at TCS, and 17 years of networking is why so many of these projects point at real operations problems.
+I'm Abhishek. I build GenAI and LLM systems in two ways, on purpose. Most of the apps in this repo were built with Claude Code, which is how I go from idea to something running quickly. The fundamentals work (QLoRA fine-tuning, a self-correcting LangGraph retrieval agent, multi-agent systems in AutoGen, CrewAI and the OpenAI Agents SDK) I built independently, without Claude Code, to understand what is underneath. I am a Senior Network Engineer at TCS, and 16 years of networking is why so many of these projects point at real operations problems.
 
 Nothing in here is a copied tutorial. Every notebook and app is something I actually ran, broke, and figured out — documented as I went, not cleaned up after the fact. I care more about understanding what's happening inside the model than about calling an API and moving on.
 
